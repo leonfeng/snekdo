@@ -30,11 +30,13 @@ def main() -> int:
     add_parser.add_argument("--title", required=True, help="Title of the todo")
     add_parser.add_argument("--description", default="", help="Description of the todo")
     add_parser.add_argument("--due", help="Due date (e.g., 2024-12-31)")
+    add_parser.add_argument("--priority", default="medium", choices=["low", "medium", "high"], help="Priority level (low, medium, high)")
 
     # List command
     list_parser = subparsers.add_parser("list", help="List all todo items")
     list_parser.add_argument("--status", choices=["all", "pending", "completed"], default="all")
     list_parser.add_argument("--limit", type=int, help="Limit the number of results")
+    list_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="Filter by priority level")
 
     # Complete command
     complete_parser = subparsers.add_parser("complete", help="Mark a todo as complete")
@@ -50,6 +52,7 @@ def main() -> int:
     modify_parser.add_argument("--title", help="New title for the todo")
     modify_parser.add_argument("--description", default=None, help="New description for the todo")
     modify_parser.add_argument("--due", help="New due date for the todo (e.g., 2024-12-31)")
+    modify_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="New priority level")
 
     try:
         args = parser.parse_args()
@@ -92,6 +95,7 @@ def handle_add(args, parser) -> int:
         due=args.due,
         completed=False,
         created_at=datetime.now().isoformat(),
+        priority=args.priority,
     )
     storage.add(todo)
     print(f"Added todo: {todo.title}")
@@ -109,6 +113,10 @@ def handle_list(args, parser) -> int:
     elif args.status == "completed":
         todos = [t for t in todos if t.completed]
 
+    # Filter by priority
+    if args.priority:
+        todos = [t for t in todos if t.priority == args.priority]
+
     # Sort by created_at (newest first)
     todos = sorted(todos, key=lambda x: x.created_at, reverse=True)
 
@@ -120,12 +128,12 @@ def handle_list(args, parser) -> int:
         print("No todos found.")
         return 0
 
-    print(f"{'ID':<35} {'Title':<30} {'Status':<10} {'Due':<15}")
+    print(f"{'ID':<35} {'Title':<30} {'Status':<10} {'Priority':<10} {'Due':<15}")
     print("-" * 100)
     for todo in todos:
         status = "✓" if todo.completed else " "
         due = todo.due if todo.due else ""
-        print(f"{todo.id:<35} {todo.title:<30} {status:<10} {due:<15}")
+        print(f"{todo.id:<35} {todo.title:<30} {status:<10} {todo.priority:<10} {due:<15}")
 
     return 0
 
@@ -158,8 +166,8 @@ def handle_delete(args, parser) -> int:
 def handle_modify(args, parser) -> int:
     """Handle the modify command."""
     # Validate that at least one field is being updated
-    if args.title is None and args.description is None and args.due is None:
-        print("Error: No fields to update. Use --title, --description, or --due to specify fields to update.")
+    if args.title is None and args.description is None and args.due is None and args.priority is None:
+        print("Error: No fields to update. Use --title, --description, --due, or --priority to specify fields to update.")
         return 1
 
     storage = TodoStorage()
@@ -176,6 +184,8 @@ def handle_modify(args, parser) -> int:
         update_data["description"] = args.description
     if args.due is not None:
         update_data["due"] = args.due
+    if args.priority is not None:
+        update_data["priority"] = args.priority
 
     storage.modify(args.todo_id, **update_data)
     print(f"Updated todo: {todo.title}")

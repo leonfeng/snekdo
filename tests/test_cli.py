@@ -356,7 +356,7 @@ class TestCLI:
         args.due = ""
         args.storage = str(storage_file)
 
-        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+        with patch('snekdo.__main__.TodoStorage) as mock_storage:
             mock_storage_instance = mock_storage.return_value
             todo = Todo(
                 id="1",
@@ -393,7 +393,7 @@ class TestCLI:
         args.due = None
         args.storage = str(storage_file)
 
-        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+        with patch('snekdo.__main__.TodoStorage) as mock_storage:
             mock_storage_instance = mock_storage.return_value
             todo = Todo(
                 id="1",
@@ -407,3 +407,130 @@ class TestCLI:
             result = handle_modify(args, None)
             assert result == 0
             mock_storage_instance.modify.assert_called_once_with("1", title="Updated Title")
+
+    def test_add_todo_with_priority(self, tmp_path):
+        """Test adding a todo with priority."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "add"
+        args.title = "Test todo"
+        args.description = "A test todo"
+        args.due = "2024-12-31"
+        args.priority = "high"
+        args.status = None
+        args.limit = None
+        args.todo_id = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage) as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            result = handle_add(args, None)
+            assert result == 0
+            mock_storage_instance.add.assert_called_once()
+            called_todo = mock_storage_instance.add.call_args[0][0]
+            assert called_todo.priority == "high"
+
+    def test_list_with_priority_filter(self, tmp_path):
+        """Test listing todos with priority filter."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "High Priority",
+                "description": "",
+                "due": None,
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "high",
+            },
+            {
+                "id": "2",
+                "title": "Low Priority",
+                "description": "",
+                "due": None,
+                "completed": False,
+                "created_at": "2024-01-02T00:00:00",
+                "priority": "low",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.priority = "high"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage) as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(
+                    id="1",
+                    title="High Priority",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-01T00:00:00",
+                    priority="high",
+                ),
+                Todo(
+                    id="2",
+                    title="Low Priority",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-02T00:00:00",
+                    priority="low",
+                )
+            ]
+            result = handle_list(args, None)
+            assert result == 0
+            assert len(mock_storage_instance.load.return_value) == 1
+            assert mock_storage_instance.load.return_value[0].priority == "high"
+
+    def test_modify_todo_with_priority(self, tmp_path):
+        """Test modifying a todo's priority."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2024-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "low",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = None
+        args.priority = "high"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage) as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2024-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+                priority="low",
+            )
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once()
+            call_args = mock_storage_instance.modify.call_args
+            assert call_args[1]["priority"] == "high"

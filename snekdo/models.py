@@ -16,6 +16,19 @@ class Status(str, Enum):
     COMPLETED = "completed"
 
 
+class Priority(str, Enum):
+    """Enum for todo priority levels."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+    @classmethod
+    def valid_values(cls):
+        """Return list of valid priority values."""
+        return [e.value for e in cls]
+
+
 @dataclass
 class Todo:
     """A single todo item."""
@@ -26,6 +39,7 @@ class Todo:
     due: Optional[str]
     completed: bool
     created_at: str  # ISO 8601
+    priority: str = "medium"
 
     def to_dict(self) -> dict:
         """Serialize to dict for JSON storage."""
@@ -36,6 +50,7 @@ class Todo:
             "due": self.due,
             "completed": self.completed,
             "created_at": self.created_at,
+            "priority": self.priority,
         }
 
     @classmethod
@@ -48,4 +63,5 @@ class Todo:
             due=data.get("due"),
             completed=data.get("completed", False),
             created_at=data["created_at"],
+            priority=data.get("priority", "medium"),
         )

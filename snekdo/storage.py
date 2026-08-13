@@ -115,7 +115,7 @@ class TodoStorage:
 
         Args:
             todo_id: The ID of the todo to modify.
-            **kwargs: Fields to update (title, description, due).
+            **kwargs: Fields to update (title, description, due, priority).
 
         Returns:
             True if the todo was found and updated, False otherwise.
@@ -130,6 +130,20 @@ class TodoStorage:
                     todo.description = kwargs["description"]
                 if "due" in kwargs:
                     todo.due = kwargs["due"]
+                if "priority" in kwargs:
+                    todo.priority = kwargs["priority"]
                 self.save(todos)
                 return True
         return False
+
+    def filter_by_priority(self, priority: str) -> List[Todo]:
+        """Filter todos by priority level.
+
+        Args:
+            priority: The priority level to filter by (low, medium, high).
+
+        Returns:
+            List of todos matching the given priority.
+        """
+        todos = self.load()
+        return [todo for todo in todos if todo.priority == priority]
