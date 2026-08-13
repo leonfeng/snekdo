@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "snekdo"
+version = "0.1.0"
+description = "A simple CLI todo list manager"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Leon", email = "leon@example.com"}]
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Utilities",
+]
+
+[project.scripts]
+snekdo = "snekdo.__main__:main"
+
+[project.optional-dependencies]
+test = ["pytest>=7.0", "pytest-cov>=4.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["snekdo*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

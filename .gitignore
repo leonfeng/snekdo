@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project
+snekdo.egg-info
+*.egg-info
+.pytest_cache
