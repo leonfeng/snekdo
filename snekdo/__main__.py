@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -89,7 +88,6 @@ def handle_add(args, parser) -> int:
     """Handle the add command."""
     storage = TodoStorage()
     todo = Todo(
-        id=str(uuid.uuid4()),
         title=args.title,
         description=args.description,
         due=args.due,

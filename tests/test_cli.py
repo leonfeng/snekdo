@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 import json
 
+from nanoid import generate
 from snekdo.models import Todo
 from snekdo.storage import TodoStorage
 from snekdo.__main__ import main, handle_command, handle_add, handle_list, handle_complete, handle_delete, handle_modify
@@ -41,11 +42,9 @@ class TestCLI:
             mock_storage_instance.load.return_value = []
             
             # This would be called in handle_add
-            from snekdo.models import Todo
             from datetime import datetime
-            import uuid
             todo = Todo(
-                id=str(uuid.uuid4()),
+                id=generate(),
                 title=args.title,
                 description=args.description,
                 due=args.due,
@@ -356,7 +355,7 @@ class TestCLI:
         args.due = ""
         args.storage = str(storage_file)
 
-        with patch('snekdo.__main__.TodoStorage) as mock_storage:
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
             todo = Todo(
                 id="1",
@@ -393,7 +392,7 @@ class TestCLI:
         args.due = None
         args.storage = str(storage_file)
 
-        with patch('snekdo.__main__.TodoStorage) as mock_storage:
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
             todo = Todo(
                 id="1",
@@ -424,7 +423,7 @@ class TestCLI:
         args.todo_id = None
         args.storage = str(storage_file)
 
-        with patch('snekdo.__main__.TodoStorage) as mock_storage:
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
             result = handle_add(args, None)
             assert result == 0
@@ -465,7 +464,7 @@ class TestCLI:
         args.priority = "high"
         args.storage = str(storage_file)
 
-        with patch('snekdo.__main__.TodoStorage) as mock_storage:
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
             mock_storage_instance.load.return_value = [
                 Todo(
@@ -517,7 +516,7 @@ class TestCLI:
         args.priority = "high"
         args.storage = str(storage_file)
 
-        with patch('snekdo.__main__.TodoStorage) as mock_storage:
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
             todo = Todo(
                 id="1",

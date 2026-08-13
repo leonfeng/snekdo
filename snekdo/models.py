@@ -7,6 +7,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from nanoid import generate
+
 
 class Status(str, Enum):
     """Enum for filtering todos by status."""
@@ -33,13 +35,18 @@ class Priority(str, Enum):
 class Todo:
     """A single todo item."""
 
-    id: str
-    title: str
-    description: str
-    due: Optional[str]
-    completed: bool
-    created_at: str  # ISO 8601
+    id: str = ""
+    title: str = ""
+    description: str = ""
+    due: Optional[str] = None
+    completed: bool = False
+    created_at: str = ""  # ISO 8601
     priority: str = "medium"
+
+    def __post_init__(self):
+        """Generate ID if not provided."""
+        if not self.id:
+            self.id = generate()
 
     def to_dict(self) -> dict:
         """Serialize to dict for JSON storage."""

@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Utilities",
 ]
+dependencies = ["nanoid>=3.0"]
 
 [project.scripts]
 snekdo = "snekdo.__main__:main"
