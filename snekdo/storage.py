@@ -109,3 +109,27 @@ class TodoStorage:
     def get_all(self) -> dict:
         """Return all todos as a dict keyed by ID."""
         return {todo.id: todo for todo in self.load()}
+
+    def modify(self, todo_id: str, **kwargs) -> bool:
+        """Modify an existing todo by ID.
+
+        Args:
+            todo_id: The ID of the todo to modify.
+            **kwargs: Fields to update (title, description, due).
+
+        Returns:
+            True if the todo was found and updated, False otherwise.
+        """
+        todos = self.load()
+        for todo in todos:
+            if todo.id == todo_id:
+                # Update only the fields provided
+                if "title" in kwargs:
+                    todo.title = kwargs["title"]
+                if "description" in kwargs:
+                    todo.description = kwargs["description"]
+                if "due" in kwargs:
+                    todo.due = kwargs["due"]
+                self.save(todos)
+                return True
+        return False

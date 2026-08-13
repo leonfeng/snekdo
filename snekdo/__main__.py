@@ -44,6 +44,13 @@ def main() -> int:
     delete_parser = subparsers.add_parser("delete", help="Delete a todo")
     delete_parser.add_argument("todo_id", help="ID of the todo to delete")
 
+    # Modify command
+    modify_parser = subparsers.add_parser("modify", help="Modify an existing todo")
+    modify_parser.add_argument("todo_id", help="ID of the todo to modify")
+    modify_parser.add_argument("--title", help="New title for the todo")
+    modify_parser.add_argument("--description", default=None, help="New description for the todo")
+    modify_parser.add_argument("--due", help="New due date for the todo (e.g., 2024-12-31)")
+
     try:
         args = parser.parse_args()
         return handle_command(args, parser)
@@ -62,6 +69,8 @@ def handle_command(args, parser) -> int:
             return handle_complete(args, parser)
         elif args.command == "delete":
             return handle_delete(args, parser)
+        elif args.command == "modify":
+            return handle_modify(args, parser)
         else:
             parser.print_help()
             return 0
@@ -143,6 +152,33 @@ def handle_delete(args, parser) -> int:
         return 1
     storage.delete(args.todo_id)
     print(f"Deleted todo: {todo.title}")
+    return 0
+
+
+def handle_modify(args, parser) -> int:
+    """Handle the modify command."""
+    # Validate that at least one field is being updated
+    if args.title is None and args.description is None and args.due is None:
+        print("Error: No fields to update. Use --title, --description, or --due to specify fields to update.")
+        return 1
+
+    storage = TodoStorage()
+    todo = storage.get(args.todo_id)
+    if todo is None:
+        print(f"Error: Todo with ID {args.todo_id} not found")
+        return 1
+
+    # Build update dict with only provided fields
+    update_data = {}
+    if args.title is not None:
+        update_data["title"] = args.title
+    if args.description is not None:
+        update_data["description"] = args.description
+    if args.due is not None:
+        update_data["due"] = args.due
+
+    storage.modify(args.todo_id, **update_data)
+    print(f"Updated todo: {todo.title}")
     return 0
 
 

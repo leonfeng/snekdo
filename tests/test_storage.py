@@ -137,3 +137,133 @@ def test_complete_not_found():
         storage = TodoStorage(storage_path=str(storage_path))
         result = storage.complete("nonexistent")
         assert result is False
+
+
+def test_modify():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="A test todo",
+            due="2024-12-31",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(todo)
+        result = storage.modify("1", title="Updated Title")
+        assert result is True
+        updated = storage.get("1")
+        assert updated.title == "Updated Title"
+
+
+def test_modify_not_found():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        result = storage.modify("nonexistent", title="Updated Title")
+        assert result is False
+
+
+def test_modify_multiple_fields():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="A test todo",
+            due="2024-12-31",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(todo)
+        result = storage.modify("1", title="New Title", description="New Desc", due="2025-01-01")
+        assert result is True
+        updated = storage.get("1")
+        assert updated.title == "New Title"
+        assert updated.description == "New Desc"
+        assert updated.due == "2025-01-01"
+
+
+def test_modify_empty_string_title():
+    """Test modifying with an empty string title."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="A test todo",
+            due="2024-12-31",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(todo)
+        result = storage.modify("1", title="")
+        assert result is True
+        updated = storage.get("1")
+        assert updated.title == ""
+
+
+def test_modify_clear_description():
+    """Test clearing the description by setting it to empty string."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="A test todo",
+            due="2024-12-31",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(todo)
+        result = storage.modify("1", description="")
+        assert result is True
+        updated = storage.get("1")
+        assert updated.description == ""
+
+
+def test_modify_clear_due():
+    """Test clearing the due date by setting it to empty string."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="A test todo",
+            due="2024-12-31",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(todo)
+        result = storage.modify("1", due="")
+        assert result is True
+        updated = storage.get("1")
+        assert updated.due == ""
+
+
+def test_modify_partial_update():
+    """Test that modifying one field doesn't affect others."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="A test todo",
+            due="2024-12-31",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(todo)
+        result = storage.modify("1", title="Updated Title")
+        assert result is True
+        updated = storage.get("1")
+        assert updated.title == "Updated Title"
+        assert updated.description == "A test todo"
+        assert updated.due == "2024-12-31"

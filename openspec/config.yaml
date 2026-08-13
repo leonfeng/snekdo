@@ -19,6 +19,13 @@ context: |
 operations:
   apply:
     guidance:
-      - After every implementation write, the next tool call MUST edit tasks.md to check off completed work. Do not write any other file until that succeeds.
-      - If a pending task's target file already exists, mark the task complete. Do not rewrite it.
-      - Cycling the same two or more files (for example README.md then pytest.ini then README.md) with no checkbox update is a loop: stop, mark those tasks complete, and move on.
+      - "After every implementation write, the next tool call MUST edit tasks.md to check off completed work. Do not write any other file until that succeeds."
+      - "If a pending task's target file already exists, mark the task complete. Do not rewrite it."
+      - "Cycling the same two or more files (for example README.md then pytest.ini then README.md) with no checkbox update is a loop: stop, mark those tasks complete, and move on."
+  archive:
+    guidance:
+      - "Merge delta specs inline in this conversation. Do not read a SKILL.md, command file, or .opencode/.agents skill path to invoke sync."
+      - "If a main spec is missing at openspec/specs/<capability>/spec.md, create it from ADDED. Do not search the repo for other *specs* paths."
+      - "Do not re-read a file whose previous read succeeded."
+      - "After specs are handled, run exactly one command: openspec archive \"<name>\" --skip-specs --yes. Do not mkdir, mv, or rm the change directory."
+      - "Creating a directory and then deleting it is a loop: stop."

@@ -12,7 +12,7 @@ import json
 
 from snekdo.models import Todo
 from snekdo.storage import TodoStorage
-from snekdo.__main__ import main, handle_command, handle_add, handle_list, handle_complete, handle_delete
+from snekdo.__main__ import main, handle_command, handle_add, handle_list, handle_complete, handle_delete, handle_modify
 
 
 class TestCLI:
@@ -183,3 +183,227 @@ class TestCLI:
             
             result = main()
             assert result == 0
+
+    def test_modify_todo(self, tmp_path):
+        """Test modifying a todo."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2024-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = "Updated title"
+        args.description = None
+        args.due = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2024-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+            )
+            mock_storage_instance.get.return_value = todo
+            
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once()
+
+    def test_modify_not_found(self, tmp_path):
+        """Test modifying a non-existent todo."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "nonexistent"
+        args.title = "Updated title"
+        args.description = None
+        args.due = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.get.return_value = None
+            
+            result = handle_modify(args, None)
+            assert result == 1
+
+    def test_modify_no_fields(self, tmp_path):
+        """Test modifying with no fields to update."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = None
+        args.storage = str(storage_file)
+
+        result = handle_modify(args, None)
+        assert result == 1
+
+    def test_modify_empty_string_title(self, tmp_path):
+        """Test modifying with an empty string title."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2024-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = ""
+        args.description = None
+        args.due = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2024-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+            )
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+
+    def test_modify_clear_description(self, tmp_path):
+        """Test clearing the description."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2024-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = ""
+        args.due = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2024-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+            )
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+
+    def test_modify_clear_due(self, tmp_path):
+        """Test clearing the due date."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2024-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = ""
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2024-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+            )
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+
+    def test_modify_partial_update(self, tmp_path):
+        """Test that modifying one field doesn't affect others."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2024-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = "Updated Title"
+        args.description = None
+        args.due = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2024-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+            )
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once_with("1", title="Updated Title")
