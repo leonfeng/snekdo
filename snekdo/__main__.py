@@ -36,6 +36,8 @@ def main() -> int:
     list_parser.add_argument("--status", choices=["all", "pending", "completed"], default="all")
     list_parser.add_argument("--limit", type=int, help="Limit the number of results")
     list_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="Filter by priority level")
+    list_parser.add_argument("--sort", default="created_at", choices=["created_at", "title", "priority", "completed"], help="Sort by field (created_at, title, priority, completed)")
+    list_parser.add_argument("--reverse", action="store_true", default=False, dest="reverse", help="Reverse the sort order")
 
     # Complete command
     complete_parser = subparsers.add_parser("complete", help="Mark a todo as complete")
@@ -86,7 +88,7 @@ def handle_command(args, parser) -> int:
 
 def handle_add(args, parser) -> int:
     """Handle the add command."""
-    storage = TodoStorage()
+    storage = TodoStorage(storage_path=args.storage)
     todo = Todo(
         title=args.title,
         description=args.description,
@@ -102,7 +104,7 @@ def handle_add(args, parser) -> int:
 
 def handle_list(args, parser) -> int:
     """Handle the list command."""
-    storage = TodoStorage()
+    storage = TodoStorage(storage_path=args.storage)
     todos = storage.load()
 
     # Filter by status
@@ -115,8 +117,20 @@ def handle_list(args, parser) -> int:
     if args.priority:
         todos = [t for t in todos if t.priority == args.priority]
 
-    # Sort by created_at (newest first)
-    todos = sorted(todos, key=lambda x: x.created_at, reverse=True)
+    # Sort by the specified field
+    sort_key = args.sort
+    if sort_key == "created_at":
+        todos = sorted(todos, key=lambda x: x.created_at, reverse=args.reverse)
+    elif sort_key == "title":
+        todos = sorted(todos, key=lambda x: x.title.lower(), reverse=args.reverse)
+    elif sort_key == "priority":
+        priority_order = {"high": 0, "medium": 1, "low": 2}
+        todos = sorted(todos, key=lambda x: priority_order.get(x.priority, 1), reverse=args.reverse)
+    elif sort_key == "completed":
+        todos = sorted(todos, key=lambda x: x.completed, reverse=args.reverse)
+    else:
+        # Default to created_at if unknown sort field
+        todos = sorted(todos, key=lambda x: x.created_at, reverse=args.reverse)
 
     # Limit results
     if args.limit:
@@ -138,20 +152,19 @@ def handle_list(args, parser) -> int:
 
 def handle_complete(args, parser) -> int:
     """Handle the complete command."""
-    storage = TodoStorage()
+    storage = TodoStorage(storage_path=args.storage)
     todo = storage.get(args.todo_id)
     if todo is None:
         print(f"Error: Todo with ID {args.todo_id} not found")
         return 1
-    todo.completed = True
-    storage.save([todo])
+    storage.complete(args.todo_id)
     print(f"Completed todo: {todo.title}")
     return 0
 
 
 def handle_delete(args, parser) -> int:
     """Handle the delete command."""
-    storage = TodoStorage()
+    storage = TodoStorage(storage_path=args.storage)
     todo = storage.get(args.todo_id)
     if todo is None:
         print(f"Error: Todo with ID {args.todo_id} not found")
@@ -168,7 +181,7 @@ def handle_modify(args, parser) -> int:
         print("Error: No fields to update. Use --title, --description, --due, or --priority to specify fields to update.")
         return 1
 
-    storage = TodoStorage()
+    storage = TodoStorage(storage_path=args.storage)
     todo = storage.get(args.todo_id)
     if todo is None:
         print(f"Error: Todo with ID {args.todo_id} not found")

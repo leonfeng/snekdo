@@ -4,10 +4,12 @@ A simple CLI todo list manager for Python.
 
 ## Features
 
-- Add, list, complete, and delete todo items
+- Add, list, complete, modify, and delete todo items
 - Persistent storage in JSON format
-- Simple command-line interface
 - File locking for concurrent access
+- Priority levels (low, medium, high) with filtering
+- Sorting by created date, title, priority, or completion status, with reverse order support
+- Custom storage path via `--storage` flag
 
 ## Installation
 
@@ -20,7 +22,7 @@ pip install -e .
 ### Add a todo
 
 ```bash
-snekdo add --title "Buy groceries" --description "Milk, eggs, bread" --due "2024-12-31"
+snekdo add --title "Buy groceries" --description "Milk, eggs, bread" --due "2024-12-31" --priority medium
 ```
 
 ### List todos
@@ -37,6 +39,18 @@ snekdo list --status completed
 
 # Limit results
 snekdo list --limit 10
+
+# Filter by priority
+snekdo list --priority high
+
+# Sort by title (ascending)
+snekdo list --sort title
+
+# Sort by priority (descending)
+snekdo list --sort priority --reverse
+
+# Sort by creation date (ascending)
+snekdo list --sort created_at
 ```
 
 ### Complete a todo
@@ -51,9 +65,19 @@ snekdo complete <todo-id>
 snekdo delete <todo-id>
 ```
 
+### Modify a todo
+
+```bash
+snekdo modify <todo-id> --title "New title" --description "New description" --due "2024-12-31" --priority high
+```
+
 ## Storage
 
-Todos are stored in `~/.snekdo/todos.json` by default.
+Todos are stored in `~/.snekdo/todos.json` by default. You can use a custom path with the `--storage` flag:
+
+```bash
+snekdo list --storage /path/to/todos.json
+```
 
 ## Development
 
