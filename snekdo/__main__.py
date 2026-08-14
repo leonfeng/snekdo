@@ -28,7 +28,6 @@ def validate_due_date(due_date: str) -> str:
     if due_date is None or due_date.strip() == "":
         return ""
     try:
-        from datetime import datetime
         parsed = datetime.strptime(due_date, "%Y-%m-%d")
         if parsed.date() < datetime.now().date():
             raise ValueError(f"Due date '{due_date}' cannot be in the past")
