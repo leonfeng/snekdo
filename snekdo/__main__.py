@@ -140,12 +140,13 @@ def handle_list(args, parser) -> int:
         print("No todos found.")
         return 0
 
-    print(f"{'ID':<35} {'Title':<30} {'Status':<10} {'Priority':<10} {'Due':<15}")
-    print("-" * 100)
+    print(f"{'ID':<35} {'Title':<30} {'Status':<10} {'Priority':<10} {'Due':<15} {'Created At':<25}")
+    print("-" * 125)
     for todo in todos:
         status = "✓" if todo.completed else " "
         due = todo.due if todo.due else ""
-        print(f"{todo.id:<35} {todo.title:<30} {status:<10} {todo.priority:<10} {due:<15}")
+        created_at = todo.created_at if todo.created_at else ""
+        print(f"{todo.id:<35} {todo.title:<30} {status:<10} {todo.priority:<10} {due:<15} {created_at:<25}")
 
     return 0
 

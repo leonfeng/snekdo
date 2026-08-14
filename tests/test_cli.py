@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 from io import StringIO
 from contextlib import contextmanager
+import io
 from unittest.mock import patch
 
 import pytest
@@ -879,3 +880,137 @@ class TestCLI:
         stored = json.loads(storage_file.read_text())
         assert len(stored) == 1
         assert stored[0]["title"] == "Second"
+
+    def test_list_shows_created_at_header(self, tmp_path):
+        """Test that the list output includes a Created At header."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(
+                    id="1",
+                    title="Test todo",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-01T00:00:00",
+                    priority="medium",
+                )
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "Created At" in output_str
+
+    def test_list_shows_created_at_value(self, tmp_path):
+        """Test that the list output displays the created_at value for each todo."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "2", "title": "Another todo", "description": "", "due": "2027-12-31", "completed": True, "created_at": "2024-01-03T00:00:00", "priority": "high"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(
+                    id="1",
+                    title="Test todo",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-01T00:00:00",
+                    priority="medium",
+                ),
+                Todo(
+                    id="2",
+                    title="Another todo",
+                    description="2024-12-31",
+                    due="2027-12-31",
+                    completed=True,
+                    created_at="2024-01-03T00:00:00",
+                    priority="high",
+                )
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "2024-01-01T00:00:00" in output_str
+            assert "2024-01-03T00:00:00" in output_str
+
+    def test_list_created_at_empty(self, tmp_path):
+        """Test that the list output handles empty created_at values."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(
+                    id="1",
+                    title="Test todo",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="",
+                    priority="medium",
+                )
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "Created At" in output_str
