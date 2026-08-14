@@ -28,11 +28,11 @@ snekdo add --title "Buy groceries" --description "Milk, eggs, bread" --due "2024
 ### List todos
 
 ```bash
-# List all todos
+# List all todos (including completed)
 snekdo list --status all
 
-# List pending todos
-snekdo list --status pending
+# List pending todos (default)
+snekdo list
 
 # List completed todos
 snekdo list --status completed

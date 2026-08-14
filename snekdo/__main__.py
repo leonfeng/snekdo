@@ -33,7 +33,7 @@ def main() -> int:
 
     # List command
     list_parser = subparsers.add_parser("list", help="List all todo items")
-    list_parser.add_argument("--status", choices=["all", "pending", "completed"], default="all")
+    list_parser.add_argument("--status", choices=["all", "pending", "completed"], default="pending")
     list_parser.add_argument("--limit", type=int, help="Limit the number of results")
     list_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="Filter by priority level")
     list_parser.add_argument("--sort", default="created_at", choices=["created_at", "title", "priority", "completed"], help="Sort by field (created_at, title, priority, completed)")
