@@ -237,7 +237,13 @@ def handle_list(args, parser) -> int:
     # Ensure the column is at least as wide as the header text.
     title_width = max(title_width, len("Title"))
 
-    header = f"{'ID':<35} {'Title':<{title_width}} {'Status':<10} {'Priority':<10} {'Due':<15} {'Created At':<25}"
+    # Compute dynamic ID column width based on the longest ID (capped at 35).
+    max_id_width = 35
+    id_width = min(max((len(t.id) for t in todos), default=5), max_id_width)
+    # Ensure the column is at least as wide as the header text.
+    id_width = max(id_width, len("ID"))
+
+    header = f"{'ID':<{id_width}} {'Title':<{title_width}} {'Status':<10} {'Priority':<10} {'Due':<15} {'Created At':<25}"
     print(header)
     print("-" * len(header))
     for todo in todos:
@@ -245,7 +251,8 @@ def handle_list(args, parser) -> int:
         due = todo.due if todo.due else ""
         created_at = todo.created_at if todo.created_at else ""
         title = _truncate_title(todo.title, title_width)
-        print(f"{todo.id:<35} {title:<{title_width}} {status:<10} {todo.priority:<10} {due:<15} {created_at:<25}")
+        id_ = _truncate_title(todo.id, id_width)
+        print(f"{id_:<{id_width}} {title:<{title_width}} {status:<10} {todo.priority:<10} {due:<15} {created_at:<25}")
 
     return 0
 

@@ -17,13 +17,13 @@ def _parse_list_line(line):
     """Parse a list output line into its columns.
 
     The list output format is:
-    {ID:<35} {Title:<title_width} {Status:<10} {Priority:<10} {Due:<15} {Created At:<25}
+    {ID:<id_width} {Title:<title_width} {Status:<10} {Priority:<10} {Due:<15} {Created At:<25}
 
-    Since all columns except Title are fixed-width, we parse from the right.
+    Since all columns except ID and Title are fixed-width, we parse from the right.
     """
     line = line.rstrip(chr(10))
 
-    # Parse from the right (all fixed-width columns except Title)
+    # Parse from the right (all fixed-width columns except ID and Title)
     created_at = line[-25:].strip()
     line = line[:-25]
     line = line[:-1]  # remove space separator before Created At
@@ -37,9 +37,16 @@ def _parse_list_line(line):
     line = line[:-10]
     line = line[:-1]  # remove space separator before Status
 
-    # Now line = {ID:<35} {Title:<title_width>} (with trailing space)
-    id_ = line[:35].strip()
-    title = line[36:].strip()
+    # Now line = {ID:<id_width} {Title:<title_width>} (with trailing spaces)
+    # Find the first space to separate the ID from the rest (ID column is dynamic width)
+    first_space = line.find(' ')
+    if first_space == -1:
+        id_ = line.strip()
+        title = ""
+    else:
+        id_ = line[:first_space].strip()
+        # Skip ID column padding and strip trailing Title column padding
+        title = line[first_space + 1:].strip()
 
     return id_, title, status, priority, due, created_at
 
@@ -1446,6 +1453,104 @@ class TestCLI:
             assert result == 0
             output_str = output.getvalue()
             assert "pending" in output_str
+
+    def test_list_id_column_width_computed_from_longest_id(self, tmp_path):
+        """Test that the ID column width is computed from the longest ID in the list."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Short ID", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "very-long-id-that-is-30-chars", "title": "Long ID", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(
+                    id="1",
+                    title="Short ID",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-01T00:00:00",
+                    priority="medium",
+                ),
+                Todo(
+                    id="very-long-id-that-is-30-chars",
+                    title="Long ID",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-02T00:00:00",
+                    priority="medium",
+                )
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            parsed_ids = [_parse_list_line(line)[0] for line in lines[1:]]
+            assert "1" in parsed_ids
+            assert "very-long-id-that-is-30-chars" in parsed_ids
+
+    def test_list_long_id_truncated_with_ellipsis(self, tmp_path):
+        """Test that IDs exceeding the max width are truncated with an ellipsis."""
+        long_id = "abcdefghijklmnopqrstuvwxyz1234567890"  # 40 chars, exceeds 35 max
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": long_id, "title": "Long ID todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(
+                    id=long_id,
+                    title="Long ID todo",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-01T00:00:00",
+                    priority="medium",
+                )
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            parsed_id = _parse_list_line(lines[1])[0]
+            assert parsed_id == long_id[:32] + "..."
 
     def test_list_invalid_sort_field(self, tmp_path):
         """Test that an invalid sort field is rejected with an error."""
