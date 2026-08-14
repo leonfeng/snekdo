@@ -1517,3 +1517,75 @@ class TestStorageFlagPlacement:
         assert args.storage == "/tmp/test.json"
         assert args.command == "show"
         assert args.todo_id == "123"
+
+
+class TestDebugFlag:
+    """Tests for the --debug flag behavior."""
+
+    def test_debug_flag_accepted(self):
+        """Test that --debug is accepted before the subcommand."""
+        from snekdo.__main__ import create_parser
+        parser = create_parser()
+        args = parser.parse_args(['--debug', 'list'])
+        assert args.debug is True
+        assert args.command == "list"
+
+    def test_debug_output_printed_to_stderr(self, capsys, tmp_path):
+        """Test that debug output is printed to stderr."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        from snekdo.__main__ import create_parser, handle_command
+        parser = create_parser()
+        args = parser.parse_args(['--debug', 'list', '--storage', str(storage_file)])
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = []
+            result = handle_command(args, parser)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "DEBUG:" in captured.err
+
+    def test_debug_output_includes_command(self, capsys, tmp_path):
+        """Test that debug output includes the command name."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        from snekdo.__main__ import create_parser, handle_command
+        parser = create_parser()
+        args = parser.parse_args(['--debug', 'add', '--storage', str(storage_file), '--title', 'Test'])
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = []
+            result = handle_command(args, parser)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "DEBUG: command=add" in captured.err
+
+    def test_debug_output_includes_storage_path(self, capsys, tmp_path):
+        """Test that debug output includes the storage path."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        from snekdo.__main__ import create_parser, handle_command
+        parser = create_parser()
+        args = parser.parse_args(['--debug', 'list', '--storage', str(storage_file)])
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = []
+            result = handle_command(args, parser)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert f"DEBUG: storage_path={storage_file}" in captured.err
+
+    def test_debug_output_suppressed(self, capsys, tmp_path):
+        """Test that debug output is suppressed when --debug is not set."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        from snekdo.__main__ import create_parser, handle_command
+        parser = create_parser()
+        args = parser.parse_args(['list', '--storage', str(storage_file)])
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = []
+            result = handle_command(args, parser)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "DEBUG:" not in captured.err

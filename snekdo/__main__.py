@@ -93,6 +93,18 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _get_storage_path(args) -> Path:
+    """Return the effective storage path from the parsed args.
+
+    Uses ``args.storage`` if provided (and not ``argparse.SUPPRESS``),
+    otherwise falls back to the default ``~/.snekdo/todos.json``.
+    """
+    storage = getattr(args, "storage", None)
+    if storage is not None and storage is not argparse.SUPPRESS:
+        return Path(storage)
+    return Path.home() / ".snekdo" / "todos.json"
+
+
 def main() -> int:
     """Main entry point for the CLI."""
     parser = create_parser()
@@ -106,6 +118,11 @@ def main() -> int:
 
 def handle_command(args, parser) -> int:
     """Handle the parsed command line arguments."""
+    if getattr(args, "debug", False):
+        storage_path = _get_storage_path(args)
+        command = getattr(args, "command", None) or "unknown"
+        print(f"DEBUG: command={command}", file=sys.stderr)
+        print(f"DEBUG: storage_path={storage_path}", file=sys.stderr)
     try:
         if args.command == "add":
             return handle_add(args, parser)
