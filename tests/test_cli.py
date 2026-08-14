@@ -31,7 +31,7 @@ class TestCLI:
         args.command = "add"
         args.title = "Test todo"
         args.description = "A test todo"
-        args.due = "2024-12-31"
+        args.due = "2027-12-31"
         args.status = None
         args.limit = None
         args.todo_id = None
@@ -70,7 +70,7 @@ class TestCLI:
                 "id": "1",
                 "title": "Test todo",
                 "description": "A test todo",
-                "due": "2024-12-31",
+                "due": "2027-12-31",
                 "completed": False,
                 "created_at": "2024-01-01T00:00:00",
             }
@@ -91,7 +91,7 @@ class TestCLI:
                     id="1",
                     title="Test todo",
                     description="A test todo",
-                    due="2024-12-31",
+                    due="2027-12-31",
                     completed=False,
                     created_at="2024-01-01T00:00:00",
                 )
@@ -192,7 +192,7 @@ class TestCLI:
                 "id": "1",
                 "title": "Test todo",
                 "description": "A test todo",
-                "due": "2024-12-31",
+                "due": "2027-12-31",
                 "completed": False,
                 "created_at": "2024-01-01T00:00:00",
             }
@@ -213,7 +213,7 @@ class TestCLI:
                 id="1",
                 title="Test todo",
                 description="A test todo",
-                due="2024-12-31",
+                due="2027-12-31",
                 completed=False,
                 created_at="2024-01-01T00:00:00",
             )
@@ -267,7 +267,7 @@ class TestCLI:
                 "id": "1",
                 "title": "Test todo",
                 "description": "A test todo",
-                "due": "2024-12-31",
+                "due": "2027-12-31",
                 "completed": False,
                 "created_at": "2024-01-01T00:00:00",
             }
@@ -288,7 +288,7 @@ class TestCLI:
                 id="1",
                 title="Test todo",
                 description="A test todo",
-                due="2024-12-31",
+                due="2027-12-31",
                 completed=False,
                 created_at="2024-01-01T00:00:00",
             )
@@ -304,7 +304,7 @@ class TestCLI:
                 "id": "1",
                 "title": "Test todo",
                 "description": "A test todo",
-                "due": "2024-12-31",
+                "due": "2027-12-31",
                 "completed": False,
                 "created_at": "2024-01-01T00:00:00",
             }
@@ -325,7 +325,7 @@ class TestCLI:
                 id="1",
                 title="Test todo",
                 description="A test todo",
-                due="2024-12-31",
+                due="2027-12-31",
                 completed=False,
                 created_at="2024-01-01T00:00:00",
             )
@@ -341,7 +341,7 @@ class TestCLI:
                 "id": "1",
                 "title": "Test todo",
                 "description": "A test todo",
-                "due": "2024-12-31",
+                "due": "2027-12-31",
                 "completed": False,
                 "created_at": "2024-01-01T00:00:00",
             }
@@ -362,7 +362,7 @@ class TestCLI:
                 id="1",
                 title="Test todo",
                 description="A test todo",
-                due="2024-12-31",
+                due="2027-12-31",
                 completed=False,
                 created_at="2024-01-01T00:00:00",
             )
@@ -378,7 +378,7 @@ class TestCLI:
                 "id": "1",
                 "title": "Test todo",
                 "description": "A test todo",
-                "due": "2024-12-31",
+                "due": "2027-12-31",
                 "completed": False,
                 "created_at": "2024-01-01T00:00:00",
             }
@@ -400,7 +400,7 @@ class TestCLI:
                 id="1",
                 title="Test todo",
                 description="A test todo",
-                due="2024-12-31",
+                due="2027-12-31",
                 completed=False,
                 created_at="2024-01-01T00:00:00",
             )
@@ -418,7 +418,7 @@ class TestCLI:
         args.command = "add"
         args.title = "Test todo"
         args.description = "A test todo"
-        args.due = "2024-12-31"
+        args.due = "2027-12-31"
         args.priority = "high"
         args.status = None
         args.limit = None
@@ -503,7 +503,7 @@ class TestCLI:
                 "id": "1",
                 "title": "Test todo",
                 "description": "A test todo",
-                "due": "2024-12-31",
+                "due": "2027-12-31",
                 "completed": False,
                 "created_at": "2024-01-01T00:00:00",
                 "priority": "low",
@@ -526,7 +526,7 @@ class TestCLI:
                 id="1",
                 title="Test todo",
                 description="A test todo",
-                due="2024-12-31",
+                due="2027-12-31",
                 completed=False,
                 created_at="2024-01-01T00:00:00",
                 priority="low",
@@ -1230,3 +1230,224 @@ class TestCLI:
             assert result == 0
             output_str = output.getvalue()
             assert "Status: ✓" in output_str
+
+    def test_add_todo_valid_date_accepted(self, tmp_path):
+        """Test that a valid future date is accepted when adding a todo."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "add"
+        args.title = "Test todo"
+        args.description = "A test todo"
+        args.due = "2027-12-31"
+        args.priority = "medium"
+        args.status = None
+        args.limit = None
+        args.todo_id = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = []
+
+            result = handle_add(args, None)
+
+            assert result == 0
+            mock_storage_instance.add.assert_called_once()
+
+    def test_add_todo_invalid_date_rejected(self, tmp_path):
+        """Test that an invalid date format is rejected when adding a todo."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "add"
+        args.title = "Test todo"
+        args.description = "A test todo"
+        args.due = "not-a-date"
+        args.priority = "medium"
+        args.status = None
+        args.limit = None
+        args.todo_id = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = []
+
+            result = handle_add(args, None)
+
+            assert result == 1
+
+    def test_add_todo_past_date_rejected(self, tmp_path):
+        """Test that a past date is rejected when adding a todo."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "add"
+        args.title = "Test todo"
+        args.description = "A test todo"
+        args.due = "2020-01-01"
+        args.priority = "medium"
+        args.status = None
+        args.limit = None
+        args.todo_id = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = []
+
+            result = handle_add(args, None)
+
+            assert result == 1
+
+    def test_add_todo_empty_due_date_accepted(self, tmp_path):
+        """Test that an empty due date is accepted when adding a todo."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "add"
+        args.title = "Test todo"
+        args.description = "A test todo"
+        args.due = ""
+        args.priority = "medium"
+        args.status = None
+        args.limit = None
+        args.todo_id = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = []
+
+            result = handle_add(args, None)
+
+            assert result == 0
+            mock_storage_instance.add.assert_called_once()
+
+    def test_modify_todo_invalid_date_rejected(self, tmp_path):
+        """Test that an invalid date format is rejected when modifying a todo."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2027-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "medium",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = "not-a-date"
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.get.return_value = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2027-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+                priority="medium",
+            )
+
+            result = handle_modify(args, None)
+
+            assert result == 1
+
+    def test_modify_todo_valid_date_accepted(self, tmp_path):
+        """Test that a valid future date is accepted when modifying a todo."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2027-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "medium",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = "2028-06-15"
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.get.return_value = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2027-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+                priority="medium",
+            )
+
+            result = handle_modify(args, None)
+
+            assert result == 0
+
+    def test_modify_todo_past_date_rejected(self, tmp_path):
+        """Test that a past date is rejected when modifying a todo."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2027-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "medium",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = "2020-01-01"
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.get.return_value = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2027-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+                priority="medium",
+            )
+
+            result = handle_modify(args, None)
+
+            assert result == 1

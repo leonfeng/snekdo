@@ -13,6 +13,31 @@ from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage
 
 
+def validate_due_date(due_date: str) -> str:
+    """Validate a due date string.
+
+    Args:
+        due_date: The due date string to validate (YYYY-MM-DD format).
+
+    Returns:
+        The validated due date string.
+
+    Raises:
+        ValueError: If the date format is invalid or the date is in the past.
+    """
+    if due_date is None or due_date.strip() == "":
+        return ""
+    try:
+        from datetime import datetime
+        parsed = datetime.strptime(due_date, "%Y-%m-%d")
+        if parsed.date() < datetime.now().date():
+            raise ValueError(f"Due date '{due_date}' cannot be in the past")
+        return due_date
+    except ValueError:
+        raise ValueError(f"Invalid due date format: '{due_date}'. Use YYYY-MM-DD format and a future date")
+
+
+
 def main() -> int:
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
@@ -95,10 +120,15 @@ def handle_command(args, parser) -> int:
 def handle_add(args, parser) -> int:
     """Handle the add command."""
     storage = TodoStorage(storage_path=args.storage)
+    try:
+        due = validate_due_date(args.due) if args.due else ""
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     todo = Todo(
         title=args.title,
         description=args.description,
-        due=args.due,
+        due=due,
         completed=False,
         created_at=datetime.now().isoformat(),
         priority=args.priority,
@@ -201,7 +231,11 @@ def handle_modify(args, parser) -> int:
     if args.description is not None:
         update_data["description"] = args.description
     if args.due is not None:
-        update_data["due"] = args.due
+        try:
+            update_data["due"] = validate_due_date(args.due)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
     if args.priority is not None:
         update_data["priority"] = args.priority
 
