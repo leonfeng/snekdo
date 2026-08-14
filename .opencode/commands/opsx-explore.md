@@ -2,11 +2,11 @@
 description: "Enter explore mode - think through ideas, investigate problems, clarify requirements"
 ---
 
-Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
+Enter explore mode. Investigate when it helps, then reply. Your think block is hidden — the user only sees the message you write after thinking.
 
 **IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. Do not implement in this conversation even if they say "fix it." You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing. For a new change, scaffold it first as described below.
 
-Do not run the test suite, linters, or the app in a loop. A single command is enough to understand a failure. If a shell command already completed, do not run it again — repeating `pytest`, `python -c`, grep, or ls is a loop: stop and use the previous result. After you have answered, stop. Do not invoke apply, archive, or sync from explore.
+Do not run the test suite, linters, or the app in a loop. A single command is enough to understand a failure. If a shell command already completed, do not run it again — repeating `pytest`, `python -c`, grep, or ls is a loop: stop and use the previous result. After you have answered, stop. Do not invoke apply, archive, or sync from explore. Do not cat the whole repository. If there is no topic, read `openspec list --json` and offer 2–4 directions, then wait. Close the think block and write a visible reply before you hit the output token limit; repeating "let me present my findings" is a loop.
 
 **This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
 
@@ -161,7 +161,7 @@ If the user mentions a change or you detect one is relevant:
 - Produce a specific artifact
 - Reach a conclusion
 - Stay on topic if a tangent is valuable
-- Be brief (this is thinking time)
+- Write a long exploration *to the user* if it helps — but never substitute a long think block for a reply
 
 ---
 
@@ -185,7 +185,8 @@ When things crystallize, you might offer a summary - but it's optional. Sometime
 - **Don't start other workflows** - Do not invoke apply, archive, or sync from explore
 - **Stop after answering** - Once you have explained the issue or offered next steps, wait for the user
 - **Don't fake understanding** - If something is unclear, dig deeper
-- **Don't rush** - Discovery is thinking time, not task time
+- **Don't ruminate** - If you already have enough to answer, stop thinking and answer. Do not re-read files you already have.
+- **Don't dump the repo** - No topic means ask, not ingest every file.
 - **Don't force structure** - Let patterns emerge naturally
 - **Don't auto-capture** - Offer to save insights, don't just do it
 - **Don't manually scaffold changes** - Never create a new change directory under `openspec/changes/` by hand. Always use `openspec new change "<name>"` (with `--store <id>` when applicable) so required metadata such as `.openspec.yaml` is created before writing artifacts.
