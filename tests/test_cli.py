@@ -2,7 +2,7 @@
 
 from unittest import mock
 import io
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -2374,3 +2374,212 @@ class TestUniformColumnWhitespace:
         # The status column should be 10 chars wide
         status_part = data_row[1:11]  # after ID column (1 char) + space
         assert len(status_part) == 10, f"Status part length {len(status_part)} != 10"
+
+
+class TestSyncCommand:
+    """Tests for the sync command."""
+
+    def _make_args(self, direction="both", server="http://127.0.0.1:8000", storage=None):
+        """Create args for the sync command."""
+        import argparse
+        args = argparse.Namespace()
+        args.command = "sync"
+        args.server = server
+        args.direction = direction
+        if storage is not None:
+            args.storage = storage
+        return args
+
+    def test_sync_pull(self, tmp_path, monkeypatch):
+        """Test that sync pull downloads todos from the server."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = self._make_args(direction="pull", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.return_value = [
+                {"id": "1", "title": "Server todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            ]
+            mock_client_class.return_value = mock_client
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *a, **k: output.write(str(a[0]) + "\n")
+                result = handle_sync(args, None)
+
+            assert result == 0
+            stored = json.loads(storage_file.read_text())
+            assert len(stored) == 1
+            assert stored[0]["title"] == "Server todo"
+
+    def test_sync_push(self, tmp_path, monkeypatch):
+        """Test that sync push uploads todos to the server."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = self._make_args(direction="push", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.return_value = []  # No server todos
+            mock_client.create_todo.return_value = {"id": "1", "title": "Local todo"}
+            mock_client_class.return_value = mock_client
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *a, **k: output.write(str(a[0]) + "\n")
+                result = handle_sync(args, None)
+
+            assert result == 0
+            mock_client.create_todo.assert_called_once()
+            assert "pushed=1" in output.getvalue()
+
+    def test_sync_both(self, tmp_path, monkeypatch):
+        """Test that sync both downloads and uploads todos."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = self._make_args(direction="both", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.return_value = [
+                {"id": "2", "title": "Server todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "high"},
+            ]
+            mock_client_class.return_value = mock_client
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *a, **k: output.write(str(a[0]) + "\n")
+                result = handle_sync(args, None)
+
+            assert result == 0
+            # Should pull 1 (server todo) and push 1 (local todo not on server)
+            assert "pulled=1" in output.getvalue()
+            assert "pushed=1" in output.getvalue()
+
+    def test_sync_conflict_resolution_pull(self, tmp_path, monkeypatch):
+        """Test that pull uses server state on conflict."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Local version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = self._make_args(direction="pull", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.return_value = [
+                {"id": "1", "title": "Server version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "high"},
+            ]
+            mock_client_class.return_value = mock_client
+
+            result = handle_sync(args, None)
+
+            assert result == 0
+            stored = json.loads(storage_file.read_text())
+            assert stored[0]["title"] == "Server version"
+            assert stored[0]["priority"] == "high"
+
+    def test_sync_conflict_resolution_push(self, tmp_path, monkeypatch):
+        """Test that push uses local state on conflict."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Local version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = self._make_args(direction="push", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.return_value = [
+                {"id": "1", "title": "Server version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "high"},
+            ]
+            mock_client.update_todo.return_value = {"id": "1", "title": "Local version"}
+            mock_client_class.return_value = mock_client
+
+            result = handle_sync(args, None)
+
+            assert result == 0
+            mock_client.update_todo.assert_called_once_with(
+                todo_id="1", title="Local version", description="", due=None, priority="medium"
+            )
+
+    def test_sync_server_unavailable(self, tmp_path, monkeypatch):
+        """Test that sync handles server connection errors."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = self._make_args(direction="pull", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        from snekdo.api_client import ConnectionError
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.side_effect = ConnectionError("Connection refused")
+            mock_client_class.return_value = mock_client
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *a, **k: output.write(str(a[0]) + "\n")
+                result = handle_sync(args, None)
+
+            assert result == 1
+            assert "Error:" in output.getvalue()
+
+    def test_sync_invalid_server_url(self, tmp_path, monkeypatch):
+        """Test that sync handles invalid server URLs."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = self._make_args(direction="pull", server="not-a-valid-url", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        from snekdo.api_client import ConnectionError
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.side_effect = ConnectionError("Invalid URL")
+            mock_client_class.return_value = mock_client
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *a, **k: output.write(str(a[0]) + "\n")
+                result = handle_sync(args, None)
+
+            assert result == 1
+
+    def test_sync_summary_printed(self, tmp_path, monkeypatch):
+        """Test that sync prints a summary."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = self._make_args(direction="pull", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.return_value = []
+            mock_client_class.return_value = mock_client
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *a, **k: output.write(str(a[0]) + "\n")
+                result = handle_sync(args, None)
+
+            assert result == 0
+            assert "Sync summary" in output.getvalue()

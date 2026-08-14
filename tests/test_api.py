@@ -4,9 +4,14 @@ import json
 import tempfile
 from pathlib import Path
 
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from fastapi.testclient import TestClient
 
 from snekdo.api import create_app
+from snekdo.api_client import ConnectionError, ServerHttpClient, ServerError
 from snekdo.storage import TodoStorage
 
 
@@ -251,3 +256,113 @@ def test_openapi_schema(tmp_path: Path):
     data = response.json()
     assert "openapi" in data
     assert data["openapi"].startswith("3.")
+
+
+# ---------------------------------------------------------------------------
+# HTTP client tests
+# ---------------------------------------------------------------------------
+
+
+class _MockResponse:
+    """A mock response for urllib.request.urlopen."""
+
+    def __init__(self, status_code=200, json_data=None):
+        self.status = status_code
+        self._json_data = json_data
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def read(self):
+        if self._json_data is not None:
+            return json.dumps(self._json_data).encode("utf-8")
+        return b""
+
+    def readable(self):
+        return True
+
+
+def test_get_todos_success():
+    """Test fetching todos from the server."""
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _MockResponse(200, [{"id": "1", "title": "Test"}])
+        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+        result = client.get_todos()
+
+    assert result == [{"id": "1", "title": "Test"}]
+
+
+def test_get_todo_success():
+    """Test fetching a single todo by ID."""
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _MockResponse(200, {"id": "1", "title": "Test todo"})
+        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+        result = client.get_todo("1")
+
+    assert result["id"] == "1"
+    assert result["title"] == "Test todo"
+
+
+def test_create_todo_success():
+    """Test creating a todo on the server."""
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _MockResponse(201, {"id": "1", "title": "New todo", "priority": "high"})
+        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+        result = client.create_todo(title="New todo", description="A test", due="2027-12-31", priority="high")
+
+    assert result["title"] == "New todo"
+    assert result["priority"] == "high"
+
+
+def test_update_todo_success():
+    """Test updating a todo on the server."""
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _MockResponse(200, {"id": "1", "title": "Updated"})
+        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+        result = client.update_todo("1", title="Updated")
+
+    assert result["title"] == "Updated"
+
+
+def test_delete_todo_success():
+    """Test deleting a todo on the server."""
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _MockResponse(200, {"message": "Deleted todo: Test"})
+        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+        result = client.delete_todo("1")
+
+    assert "Deleted" in result["message"]
+
+
+def test_complete_todo_success():
+    """Test marking a todo as complete on the server."""
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _MockResponse(200, {"id": "1", "title": "Test", "completed": True})
+        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+        result = client.complete_todo("1")
+
+    assert result["completed"] is True
+
+
+def test_connection_error():
+    """Test that connection errors are handled."""
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.side_effect = Exception("Connection refused")
+        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+
+        with pytest.raises(ConnectionError):
+            client.get_todos()
+
+
+def test_server_error():
+    """Test that server errors are handled."""
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.side_effect = Exception("Server returned 500")
+
+        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+
+        with pytest.raises(ConnectionError):
+            client.get_todos()

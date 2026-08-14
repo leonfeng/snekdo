@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from snekdo.api import create_app
+from snekdo.api_client import ConnectionError, ServerHttpClient, ServerError, SyncSummary
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage
 
@@ -119,6 +120,12 @@ def create_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--port", type=int, default=8000, help="Port to bind the server")
     serve_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
 
+    # Sync command
+    sync_parser = subparsers.add_parser("sync", help="Synchronize with the FastAPI server")
+    sync_parser.add_argument("--server", default="http://127.0.0.1:8000", help="Server base URL")
+    sync_parser.add_argument("--direction", choices=["pull", "push", "both"], default="both", help="Sync direction")
+    sync_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+
     return parser
 
 
@@ -167,6 +174,8 @@ def handle_command(args, parser) -> int:
             return handle_show(args, parser)
         elif args.command == "serve":
             return handle_serve(args, parser)
+        elif args.command == "sync":
+            return handle_sync(args, parser)
         else:
             parser.print_help()
             return 0
@@ -378,6 +387,109 @@ def handle_serve(args, parser) -> int:
     print(f"OpenAPI docs: http://{args.host}:{args.port}/docs")
     uvicorn.run(app, host=args.host, port=args.port)
     return 0
+
+
+def handle_sync(args, parser) -> int:
+    """Handle the sync command to synchronize with the FastAPI server."""
+    
+
+    storage_path = _get_storage_path(args)
+    client = ServerHttpClient(base_url=args.server)
+
+    try:
+        summary = _sync(client, storage_path, args.direction)
+        print(summary)
+        if summary.errors:
+            for error in summary.errors:
+                print(f"Error: {error}", file=sys.stderr)
+            return 1
+        return 0
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncSummary:
+    """Synchronize local storage with the server.
+
+    Args:
+        client: The HTTP client.
+        storage_path: Path to the local storage file.
+        direction: One of 'pull', 'push', or 'both'.
+
+    Returns:
+        A SyncSummary with counts of operations performed.
+    """
+    from snekdo.models import Todo
+    from snekdo.storage import TodoStorage
+
+    storage = TodoStorage(storage_path=str(storage_path))
+    summary = SyncSummary()
+    errors: list[str] = []
+
+    try:
+        server_todos = client.get_todos()
+    except (ConnectionError, ServerError) as e:
+        errors.append(f"Failed to fetch todos from server: {e}")
+        summary.errors = errors
+        return summary
+
+    server_todo_map = {todo["id"]: todo for todo in server_todos}
+    local_todos = storage.load()
+    local_todo_map = {todo.id: todo for todo in local_todos}
+
+    if direction in ("pull", "both"):
+        # Pull: server is source of truth
+        summary.pulled = len(server_todos)
+        storage.save([Todo.from_dict(todo) for todo in server_todos])
+
+    if direction in ("push", "both"):
+        # Push: local is source of truth for local todos
+        for local_todo in local_todos:
+            server_data = server_todo_map.get(local_todo.id)
+            if server_data is None:
+                # Create new todo on server
+                try:
+                    client.create_todo(
+                        title=local_todo.title,
+                        description=local_todo.description,
+                        due=local_todo.due or None,
+                        priority=local_todo.priority,
+                    )
+                    summary.pushed += 1
+                except (ConnectionError, ServerError) as e:
+                    errors.append(f"Failed to create todo {local_todo.id}: {e}")
+            else:
+                # Update existing todo on server (local wins)
+                try:
+                    client.update_todo(
+                        todo_id=local_todo.id,
+                        title=local_todo.title,
+                        description=local_todo.description,
+                        due=local_todo.due or None,
+                        priority=local_todo.priority,
+                    )
+                    summary.updated += 1
+                except (ConnectionError, ServerError) as e:
+                    errors.append(f"Failed to update todo {local_todo.id}: {e}")
+
+    # Delete server todos that no longer exist locally (only on push/both)
+    if direction in ("push", "both"):
+        for server_id in server_todo_map:
+            if server_id not in local_todo_map:
+                try:
+                    client.delete_todo(server_id)
+                    summary.deleted += 1
+                except (ConnectionError, ServerError) as e:
+                    errors.append(f"Failed to delete todo {server_id}: {e}")
+
+    if errors:
+        summary.errors = errors
+
+    return summary
 
 
 if __name__ == "__main__":
