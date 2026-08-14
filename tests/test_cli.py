@@ -1,19 +1,13 @@
 """Tests for the CLI layer."""
 
 from unittest import mock
-from pathlib import Path
-import sys
-from io import StringIO
-from contextlib import contextmanager
 import io
 from unittest.mock import patch
 
-import pytest
 import json
 
 from nanoid import generate
 from snekdo.models import Todo
-from snekdo.storage import TodoStorage
 from snekdo.__main__ import main, handle_command, handle_add, handle_list, handle_complete, handle_delete, handle_modify, handle_show
 
 
@@ -569,7 +563,6 @@ class TestCLI:
             ]
 
             import io
-            import sys
             # Capture stdout
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
@@ -611,7 +604,6 @@ class TestCLI:
             ]
 
             import io
-            import sys
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
                 mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
@@ -652,7 +644,6 @@ class TestCLI:
             ]
 
             import io
-            import sys
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
                 mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
@@ -693,7 +684,6 @@ class TestCLI:
             ]
 
             import io
-            import sys
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
                 mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
@@ -890,7 +880,6 @@ class TestCLI:
             ]
 
             import io
-            import sys
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
                 mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')

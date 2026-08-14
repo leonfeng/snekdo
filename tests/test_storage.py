@@ -1,6 +1,5 @@
 """Tests for the TodoStorage class."""
 
-import json
 import tempfile
 from pathlib import Path
 
