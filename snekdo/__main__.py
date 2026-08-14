@@ -36,6 +36,19 @@ def validate_due_date(due_date: str) -> str:
         raise ValueError(f"Invalid due date format: '{due_date}'. Use YYYY-MM-DD format and a future date")
 
 
+def _parse_created_at(created_at: str) -> datetime:
+    """Parse a created_at ISO 8601 string into a datetime object.
+
+    Empty or missing values are treated as the earliest possible date (epoch).
+    Malformed strings are also treated as the earliest possible date.
+    """
+    if not created_at:
+        return datetime.min
+    try:
+        return datetime.fromisoformat(created_at)
+    except (ValueError, TypeError):
+        return datetime.min
+
 
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the CLI."""
@@ -185,7 +198,7 @@ def handle_list(args, parser) -> int:
     # Sort by the specified field
     sort_key = args.sort
     if sort_key == "created_at":
-        todos = sorted(todos, key=lambda x: x.created_at, reverse=args.reverse)
+        todos = sorted(todos, key=lambda x: _parse_created_at(x.created_at), reverse=args.reverse)
     elif sort_key == "title":
         todos = sorted(todos, key=lambda x: x.title.lower(), reverse=args.reverse)
     elif sort_key == "priority":

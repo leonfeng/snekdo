@@ -577,7 +577,7 @@ class TestCLI:
             assert result == 0
             output_str = output.getvalue()
             lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line.split()[1] for line in lines[1:]]
+            titles = [line[36:66].strip() for line in lines[1:]]
             assert titles == ["Apple", "Banana", "Cherry"]
 
     def test_list_sort_by_title_reverse(self, tmp_path):
@@ -618,7 +618,7 @@ class TestCLI:
             assert result == 0
             output_str = output.getvalue()
             lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line.split()[1] for line in lines[1:]]
+            titles = [line[36:66].strip() for line in lines[1:]]
             assert titles == ["Cherry", "Banana", "Apple"]
 
     def test_list_sort_by_priority(self, tmp_path):
@@ -659,7 +659,7 @@ class TestCLI:
             assert result == 0
             output_str = output.getvalue()
             lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line.split()[1] for line in lines[1:]]
+            titles = [line[36:66].strip() for line in lines[1:]]
             assert titles == ["High", "Medium", "Low"]
 
     def test_list_sort_by_created_at(self, tmp_path):
@@ -700,8 +700,164 @@ class TestCLI:
             assert result == 0
             output_str = output.getvalue()
             lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line.split()[1] for line in lines[1:]]
+            titles = [line[36:66].strip() for line in lines[1:]]
             assert titles == ["Old", "Medium", "New"]
+
+    def test_list_sort_by_created_at_microsecond_precision(self, tmp_path):
+        """Test listing todos sorted by created_at with microsecond precision."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "First", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.123456", "priority": "medium"},
+            {"id": "2", "title": "Second", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.654321", "priority": "medium"},
+            {"id": "3", "title": "Third", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.000000", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(**todos[0]),
+                Todo(**todos[1]),
+                Todo(**todos[2]),
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
+            titles = [line[36:66].strip() for line in lines[1:]]
+            assert titles == ["Third", "First", "Second"]
+
+    def test_list_sort_by_created_at_reverse(self, tmp_path):
+        """Test listing todos sorted by created_at in reverse order."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Old", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "2", "title": "New", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},
+            {"id": "3", "title": "Medium", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = True
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(**todos[0]),
+                Todo(**todos[1]),
+                Todo(**todos[2]),
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
+            titles = [line[36:66].strip() for line in lines[1:]]
+            assert titles == ["New", "Medium", "Old"]
+
+    def test_list_sort_by_created_at_empty(self, tmp_path):
+        """Test listing todos with empty created_at values sort consistently."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Has Date", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "2", "title": "Empty Date", "description": "", "due": None, "completed": False, "created_at": "", "priority": "medium"},
+            {"id": "3", "title": "Also Has Date", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(**todos[0]),
+                Todo(**todos[1]),
+                Todo(**todos[2]),
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
+            titles = [line[36:66].strip() for line in lines[1:]]
+            assert titles == ["Empty Date", "Also Has Date", "Has Date"]
+
+    def test_list_sort_by_created_at_mixed_precision(self, tmp_path):
+        """Test listing todos with mixed-precision ISO 8601 created_at values."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "NoMicro", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "2", "title": "WithMicro", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.000000", "priority": "medium"},
+            {"id": "3", "title": "Later", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(**todos[0]),
+                Todo(**todos[1]),
+                Todo(**todos[2]),
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
+            titles = [line[36:66].strip() for line in lines[1:]]
+            assert titles == ["NoMicro", "WithMicro", "Later"]
 
     def test_list_sort_by_completed(self, tmp_path):
         """Test listing todos sorted by completed status."""
@@ -741,8 +897,8 @@ class TestCLI:
             assert result == 0
             output_str = output.getvalue()
             lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line.split()[1] for line in lines[1:]]
-            assert titles == ["Pending", "Done", "Also"]
+            titles = [line[36:66].strip() for line in lines[1:]]
+            assert titles == ["Pending", "Done", "Also Done"]
 
     def test_complete_todo_real_storage(self, tmp_path):
         """Test completing a todo preserves other todos using real storage."""
