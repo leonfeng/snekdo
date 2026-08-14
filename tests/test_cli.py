@@ -13,6 +13,38 @@ from snekdo.models import Todo
 from snekdo.__main__ import main, handle_command, handle_add, handle_list, handle_complete, handle_delete, handle_modify, handle_show
 
 
+def _parse_list_line(line):
+    """Parse a list output line into its columns.
+
+    The list output format is:
+    {ID:<35} {Title:<title_width} {Status:<10} {Priority:<10} {Due:<15} {Created At:<25}
+
+    Since all columns except Title are fixed-width, we parse from the right.
+    """
+    line = line.rstrip(chr(10))
+
+    # Parse from the right (all fixed-width columns except Title)
+    created_at = line[-25:].strip()
+    line = line[:-25]
+    line = line[:-1]  # remove space separator before Created At
+    due = line[-15:].strip()
+    line = line[:-15]
+    line = line[:-1]  # remove space separator before Due
+    priority = line[-10:].strip()
+    line = line[:-10]
+    line = line[:-1]  # remove space separator before Priority
+    status = line[-10:].strip()
+    line = line[:-10]
+    line = line[:-1]  # remove space separator before Status
+
+    # Now line = {ID:<35} {Title:<title_width>} (with trailing space)
+    id_ = line[:35].strip()
+    title = line[36:].strip()
+
+    return id_, title, status, priority, due, created_at
+
+
+
 class TestCLI:
     """Test cases for the CLI layer."""
 
@@ -573,9 +605,105 @@ class TestCLI:
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line[36:66].strip() for line in lines[1:]]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Apple", "Banana", "Cherry"]
+
+    def test_list_long_title_truncated_with_ellipsis(self, tmp_path):
+        """Test that titles exceeding the maximum width are truncated with ellipsis."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "title"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        long_title = "This is a very long title that should be truncated"
+        short_title = "Short"
+
+        with patch("snekdo.__main__.TodoStorage") as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(
+                    id="1",
+                    title=long_title,
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-01T00:00:00",
+                    priority="medium",
+                ),
+                Todo(
+                    id="2",
+                    title=short_title,
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-02T00:00:00",
+                    priority="medium",
+                ),
+            ]
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + "\n")
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            lines = [line for line in output_str.rstrip("\n").split("\n") if line and not line.startswith("---")]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
+
+            # The long title should be truncated with ellipsis
+            assert long_title not in titles
+            assert any(t.endswith("...") for t in titles)
+
+    def test_list_short_title_fully_visible(self, tmp_path):
+        """Test that short titles are displayed fully without truncation."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "title"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch("snekdo.__main__.TodoStorage") as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(
+                    id="1",
+                    title="Apple",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-01T00:00:00",
+                    priority="medium",
+                ),
+            ]
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + "\n")
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            lines = [line for line in output_str.rstrip("\n").split("\n") if line and not line.startswith("---")]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
+
+            assert titles == ["Apple"]
 
     def test_list_sort_by_title_reverse(self, tmp_path):
         """Test listing todos sorted by title in reverse order."""
@@ -613,8 +741,8 @@ class TestCLI:
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line[36:66].strip() for line in lines[1:]]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Cherry", "Banana", "Apple"]
 
     def test_list_sort_by_priority(self, tmp_path):
@@ -653,8 +781,8 @@ class TestCLI:
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line[36:66].strip() for line in lines[1:]]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["High", "Medium", "Low"]
 
     def test_list_sort_by_created_at(self, tmp_path):
@@ -693,8 +821,8 @@ class TestCLI:
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line[36:66].strip() for line in lines[1:]]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Old", "Medium", "New"]
 
     def test_list_sort_by_created_at_microsecond_precision(self, tmp_path):
@@ -732,8 +860,8 @@ class TestCLI:
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line[36:66].strip() for line in lines[1:]]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Third", "First", "Second"]
 
     def test_list_sort_by_created_at_reverse(self, tmp_path):
@@ -771,8 +899,8 @@ class TestCLI:
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line[36:66].strip() for line in lines[1:]]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["New", "Medium", "Old"]
 
     def test_list_sort_by_created_at_empty(self, tmp_path):
@@ -810,8 +938,8 @@ class TestCLI:
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line[36:66].strip() for line in lines[1:]]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Empty Date", "Also Has Date", "Has Date"]
 
     def test_list_sort_by_created_at_mixed_precision(self, tmp_path):
@@ -849,8 +977,8 @@ class TestCLI:
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line[36:66].strip() for line in lines[1:]]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["NoMicro", "WithMicro", "Later"]
 
     def test_list_sort_by_completed(self, tmp_path):
@@ -889,8 +1017,8 @@ class TestCLI:
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.strip().split('\n') if line and not line.startswith('---')]
-            titles = [line[36:66].strip() for line in lines[1:]]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Pending", "Done", "Also Done"]
 
     def test_complete_todo_real_storage(self, tmp_path):

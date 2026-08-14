@@ -47,6 +47,18 @@ def _parse_created_at(created_at: str) -> datetime:
     except (ValueError, TypeError):
         return datetime.min
 
+def _truncate_title(title: str, max_width: int) -> str:
+    """Truncate a title to fit within max_width, appending an ellipsis.
+
+    If the title fits within max_width, it is returned unchanged.
+    Otherwise, the title is truncated to max_width - 3 characters and
+    '...' is appended.
+    """
+    if len(title) <= max_width:
+        return title
+    return title[: max_width - 3] + "..."
+
+
 
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the CLI."""
@@ -219,13 +231,21 @@ def handle_list(args, parser) -> int:
         print("No todos found.")
         return 0
 
-    print(f"{'ID':<35} {'Title':<30} {'Status':<10} {'Priority':<10} {'Due':<15} {'Created At':<25}")
-    print("-" * 125)
+    # Compute dynamic Title column width based on the longest title (capped at 40).
+    max_title_width = 40
+    title_width = min(max((len(t.title) for t in todos), default=5), max_title_width)
+    # Ensure the column is at least as wide as the header text.
+    title_width = max(title_width, len("Title"))
+
+    header = f"{'ID':<35} {'Title':<{title_width}} {'Status':<10} {'Priority':<10} {'Due':<15} {'Created At':<25}"
+    print(header)
+    print("-" * len(header))
     for todo in todos:
         status = "✓" if todo.completed else "pending"
         due = todo.due if todo.due else ""
         created_at = todo.created_at if todo.created_at else ""
-        print(f"{todo.id:<35} {todo.title:<30} {status:<10} {todo.priority:<10} {due:<15} {created_at:<25}")
+        title = _truncate_title(todo.title, title_width)
+        print(f"{todo.id:<35} {title:<{title_width}} {status:<10} {todo.priority:<10} {due:<15} {created_at:<25}")
 
     return 0
 
