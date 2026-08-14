@@ -159,7 +159,7 @@ def handle_command(args, parser) -> int:
 
 def handle_add(args, parser) -> int:
     """Handle the add command."""
-    storage = TodoStorage(storage_path=args.storage)
+    storage = TodoStorage(storage_path=getattr(args, "storage", None))
     try:
         due = validate_due_date(args.due) if args.due else ""
     except ValueError as e:
@@ -180,7 +180,7 @@ def handle_add(args, parser) -> int:
 
 def handle_list(args, parser) -> int:
     """Handle the list command."""
-    storage = TodoStorage(storage_path=args.storage)
+    storage = TodoStorage(storage_path=getattr(args, "storage", None))
     todos = storage.load()
 
     # Filter by status
@@ -232,7 +232,7 @@ def handle_list(args, parser) -> int:
 
 def handle_complete(args, parser) -> int:
     """Handle the complete command."""
-    storage = TodoStorage(storage_path=args.storage)
+    storage = TodoStorage(storage_path=getattr(args, "storage", None))
     todo = storage.get(args.todo_id)
     if todo is None:
         print(f"Error: Todo with ID {args.todo_id} not found")
@@ -244,7 +244,7 @@ def handle_complete(args, parser) -> int:
 
 def handle_delete(args, parser) -> int:
     """Handle the delete command."""
-    storage = TodoStorage(storage_path=args.storage)
+    storage = TodoStorage(storage_path=getattr(args, "storage", None))
     todo = storage.get(args.todo_id)
     if todo is None:
         print(f"Error: Todo with ID {args.todo_id} not found")
@@ -261,7 +261,7 @@ def handle_modify(args, parser) -> int:
         print("Error: No fields to update. Use --title, --description, --due, or --priority to specify fields to update.")
         return 1
 
-    storage = TodoStorage(storage_path=args.storage)
+    storage = TodoStorage(storage_path=getattr(args, "storage", None))
     todo = storage.get(args.todo_id)
     if todo is None:
         print(f"Error: Todo with ID {args.todo_id} not found")
@@ -289,7 +289,7 @@ def handle_modify(args, parser) -> int:
 
 def handle_show(args, parser) -> int:
     """Handle the show command."""
-    storage = TodoStorage(storage_path=args.storage)
+    storage = TodoStorage(storage_path=getattr(args, "storage", None))
     todo = storage.get(args.todo_id)
     if todo is None:
         print(f"Error: Todo with ID {args.todo_id} not found")

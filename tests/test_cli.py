@@ -4,6 +4,8 @@ from unittest import mock
 import io
 from unittest.mock import patch
 
+import pytest
+
 import json
 
 from nanoid import generate
@@ -1805,6 +1807,177 @@ class TestStorageFlagPlacement:
         assert args.storage == "/tmp/test.json"
         assert args.command == "show"
         assert args.todo_id == "123"
+
+
+class TestMissingStorageAttribute:
+    """Tests for handlers working when --storage is omitted (argparse.SUPPRESS).
+
+    These tests verify that the handlers use getattr(args, "storage", None)
+    instead of direct attribute access, which would fail when --storage is
+    not provided because argparse does not set the attribute on the Namespace.
+    """
+
+    def _make_args(self, command, **kwargs):
+        """Create a real argparse Namespace with the given command and kwargs.
+
+        The storage attribute is intentionally not set to simulate the
+        behavior of argparse.SUPPRESS when --storage is omitted.
+        """
+        import argparse
+        args = argparse.Namespace()
+        args.command = command
+        for key, value in kwargs.items():
+            setattr(args, key, value)
+        return args
+
+    def test_add_without_storage_attribute(self, tmp_path, monkeypatch):
+        """Test that add works when --storage is omitted (no storage attribute)."""
+        default_dir = tmp_path / ".snekdo"
+        default_dir.mkdir()
+        default_file = default_dir / "todos.json"
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        args = self._make_args(
+            "add",
+            title="Test todo",
+            description="",
+            due="2027-12-31",
+            priority="medium",
+        )
+        assert not hasattr(args, "storage")
+
+        from snekdo.__main__ import handle_add
+        result = handle_add(args, None)
+        assert result == 0
+        assert default_file.exists()
+
+    def test_list_without_storage_attribute(self, tmp_path, monkeypatch):
+        """Test that list works when --storage is omitted."""
+        default_dir = tmp_path / ".snekdo"
+        default_dir.mkdir()
+        default_file = default_dir / "todos.json"
+        default_file.write_text("[]")
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        args = self._make_args(
+            "list",
+            status="all",
+            limit=None,
+            todo_id=None,
+            sort="created_at",
+            reverse=False,
+            priority=None,
+        )
+        assert not hasattr(args, "storage")
+
+        from snekdo.__main__ import handle_list
+        result = handle_list(args, None)
+        assert result == 0
+
+    def test_complete_without_storage_attribute(self, tmp_path, monkeypatch):
+        """Test that complete works when --storage is omitted."""
+        default_dir = tmp_path / ".snekdo"
+        default_dir.mkdir()
+        default_file = default_dir / "todos.json"
+        todos = [
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        default_file.write_text(json.dumps(todos))
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        args = self._make_args("complete", todo_id="1")
+        assert not hasattr(args, "storage")
+
+        from snekdo.__main__ import handle_complete
+        result = handle_complete(args, None)
+        assert result == 0
+
+        stored = json.loads(default_file.read_text())
+        assert stored[0]["completed"] is True
+
+    def test_delete_without_storage_attribute(self, tmp_path, monkeypatch):
+        """Test that delete works when --storage is omitted."""
+        default_dir = tmp_path / ".snekdo"
+        default_dir.mkdir()
+        default_file = default_dir / "todos.json"
+        todos = [
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        default_file.write_text(json.dumps(todos))
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        args = self._make_args("delete", todo_id="1")
+        assert not hasattr(args, "storage")
+
+        from snekdo.__main__ import handle_delete
+        result = handle_delete(args, None)
+        assert result == 0
+
+        stored = json.loads(default_file.read_text())
+        assert len(stored) == 0
+
+    def test_modify_without_storage_attribute(self, tmp_path, monkeypatch):
+        """Test that modify works when --storage is omitted."""
+        default_dir = tmp_path / ".snekdo"
+        default_dir.mkdir()
+        default_file = default_dir / "todos.json"
+        todos = [
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        default_file.write_text(json.dumps(todos))
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        args = self._make_args("modify", todo_id="1", title="Updated", description=None, due=None, priority=None)
+        assert not hasattr(args, "storage")
+
+        from snekdo.__main__ import handle_modify
+        result = handle_modify(args, None)
+        assert result == 0
+
+        stored = json.loads(default_file.read_text())
+        assert stored[0]["title"] == "Updated"
+
+    def test_show_without_storage_attribute(self, tmp_path, monkeypatch):
+        """Test that show works when --storage is omitted."""
+        default_dir = tmp_path / ".snekdo"
+        default_dir.mkdir()
+        default_file = default_dir / "todos.json"
+        todos = [
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        default_file.write_text(json.dumps(todos))
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        args = self._make_args("show", todo_id="1")
+        assert not hasattr(args, "storage")
+
+        from snekdo.__main__ import handle_show
+        result = handle_show(args, None)
+        assert result == 0
+
+    def test_todo_storage_called_with_none(self, tmp_path, monkeypatch):
+        """Test that handlers call TodoStorage with None when --storage is omitted."""
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        args = self._make_args("add", title="Test", description="", due=None, priority="medium")
+        assert not hasattr(args, "storage")
+
+        from snekdo.__main__ import handle_add
+        with patch("snekdo.__main__.TodoStorage") as mock_storage:
+            handle_add(args, None)
+            mock_storage.assert_called_once_with(storage_path=None)
+
+    def test_direct_attribute_access_would_fail(self):
+        """Test that direct args.storage access raises AttributeError.
+
+        This documents the original bug: direct attribute access on a
+        Namespace without the storage attribute raises AttributeError.
+        """
+        import argparse
+        args = argparse.Namespace()
+        args.command = "add"
+        with pytest.raises(AttributeError):
+            _ = args.storage
 
 
 class TestDebugFlag:
