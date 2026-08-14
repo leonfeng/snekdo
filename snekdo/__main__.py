@@ -224,7 +224,7 @@ def handle_list(args, parser) -> int:
     print(f"{'ID':<35} {'Title':<30} {'Status':<10} {'Priority':<10} {'Due':<15} {'Created At':<25}")
     print("-" * 125)
     for todo in todos:
-        status = "✓" if todo.completed else " "
+        status = "✓" if todo.completed else "pending"
         due = todo.due if todo.due else ""
         created_at = todo.created_at if todo.created_at else ""
         print(f"{todo.id:<35} {todo.title:<30} {status:<10} {todo.priority:<10} {due:<15} {created_at:<25}")
@@ -297,7 +297,7 @@ def handle_show(args, parser) -> int:
         print(f"Error: Todo with ID {args.todo_id} not found")
         return 1
 
-    status = "✓" if todo.completed else " "
+    status = "✓" if todo.completed else "pending"
     due = todo.due if todo.due else ""
     created_at = todo.created_at if todo.created_at else ""
 

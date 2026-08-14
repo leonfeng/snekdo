@@ -1277,6 +1277,57 @@ class TestCLI:
             assert "Pending todo" in output_str
             assert "Completed todo" in output_str
 
+    def test_list_status_display(self, tmp_path):
+        """Test that the list output displays pending status as text."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Pending todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "2", "title": "Completed todo", "description": "", "due": None, "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = [
+                Todo(
+                    id="1",
+                    title="Pending todo",
+                    description="",
+                    due=None,
+                    completed=False,
+                    created_at="2024-01-01T00:00:00",
+                    priority="medium",
+                ),
+                Todo(
+                    id="2",
+                    title="Completed todo",
+                    description="",
+                    due=None,
+                    completed=True,
+                    created_at="2024-01-02T00:00:00",
+                    priority="medium",
+                )
+            ]
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_list(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "pending" in output_str
+
     def test_list_invalid_sort_field(self, tmp_path):
         """Test that an invalid sort field is rejected with an error."""
         storage_file = tmp_path / "todos.json"
@@ -1436,6 +1487,48 @@ class TestCLI:
             assert result == 0
             output_str = output.getvalue()
             assert "Status: ✓" in output_str
+
+    def test_show_pending_todo(self, tmp_path):
+        """Test showing a pending todo item displays status correctly."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Pending todo",
+                "description": "",
+                "due": None,
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "medium",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "show"
+        args.todo_id = "1"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.get.return_value = Todo(
+                id="1",
+                title="Pending todo",
+                description="",
+                due=None,
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+                priority="medium",
+            )
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_show(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "Status: pending" in output_str
 
     def test_add_todo_valid_date_accepted(self, tmp_path):
         """Test that a valid future date is accepted when adding a todo."""

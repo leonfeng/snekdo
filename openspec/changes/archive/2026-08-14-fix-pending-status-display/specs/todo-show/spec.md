@@ -1,10 +1,4 @@
-# todo-show Specification
-
-## Purpose
-
-This capability allows users to view the complete details of a single todo item by its ID, displaying all stored fields in a readable format.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Show todo details command
 
@@ -29,7 +23,7 @@ The system SHALL display whether a todo is completed or pending.
 #### Scenario: Completed status shown
 
 - **WHEN** user runs `show` on a completed todo
-- **THEN** system displays "Status: ✓" or "Status: completed"
+- **THEN** system displays "Status: ✓"
 
 #### Scenario: Pending status shown
 
