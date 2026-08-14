@@ -107,6 +107,34 @@ The system SHALL display the ID column wide enough to show the full ID of each t
 - **WHEN** user runs `list` command with multiple todos of varying ID lengths
 - **THEN** the ID column width is wide enough to display the longest non-truncated ID
 
+### Requirement: Column whitespace is uniform
+
+The system SHALL display uniform whitespace between all columns in the todo list output table. Each column cell SHALL be padded to its computed or fixed width with a single space separator between columns.
+
+#### Scenario: Uniform spacing between columns
+
+- **WHEN** user runs `list` command with multiple todos
+- **THEN** the whitespace between every column in the header and data rows is consistent
+
+#### Scenario: Fixed-width columns use consistent padding
+
+- **WHEN** user runs `list` command
+- **THEN** columns with fixed widths (Status, Priority, Due, Created At) are padded to their fixed width with a single space separator
+
+#### Scenario: Dynamic-width columns use consistent padding
+
+- **WHEN** user runs `list` command with todos of varying title lengths
+- **THEN** the ID and Title columns are padded to their computed width with a single space separator
+
+### Requirement: Table header aligns with data rows
+
+The system SHALL keep all columns aligned in the output table.
+
+#### Scenario: Header aligns with data rows
+
+- **WHEN** user runs `list` command
+- **THEN** the column headers align with the corresponding data rows
+
 ### Requirement: List output remains aligned
 
 The system SHALL keep all columns aligned in the output table after the Title column width is adjusted.

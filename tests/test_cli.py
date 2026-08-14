@@ -2283,3 +2283,94 @@ class TestDebugFlag:
         assert result == 0
         captured = capsys.readouterr()
         assert "DEBUG:" not in captured.err
+
+
+class TestUniformColumnWhitespace:
+    """Tests for uniform whitespace between columns in the list output."""
+
+    def _make_list_output(self, todo_dicts, tmp_path):
+        """Helper to generate list output for given todo dicts."""
+        todos = [Todo(**d) for d in todo_dicts]
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text(json.dumps(todo_dicts))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *a, **k: output.write(str(a[0]) + '\n')
+                handle_list(args, None)
+            return output.getvalue()
+
+    def test_uniform_whitespace_between_columns(self, tmp_path):
+        """Test that whitespace between columns is uniform (single space)."""
+        todos = [
+            {"id": "1", "title": "Short", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "2", "title": "A much longer title that exceeds normal width", "description": "", "due": "2024-12-31", "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "high"},
+        ]
+        output_str = self._make_list_output(todos, tmp_path)
+        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+        header = lines[0]
+        # Check that the header has single-space separators between columns
+        assert "Title" in header
+        # Verify that the separator between columns is a single space
+        parts = header.split(' ')
+        # After splitting on single space, we should have non-empty parts for each column
+        non_empty = [p for p in parts if p]
+        assert "Status" in non_empty
+        assert "Priority" in non_empty
+        assert "Due" in non_empty
+        assert "Created" in non_empty
+        assert "At" in non_empty
+
+    def test_header_aligns_with_data_rows(self, tmp_path):
+        """Test that the table header aligns with data rows."""
+        todos = [
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        output_str = self._make_list_output(todos, tmp_path)
+        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+        header = lines[0]
+        data_row = lines[1]
+        # Check that the header and data row have the same length
+        assert len(header) == len(data_row), f"Header length {len(header)} != data row length {len(data_row)}"
+
+    def test_single_space_separator_between_columns(self, tmp_path):
+        """Test that there is exactly one space between columns in the header."""
+        todos = [
+            {"id": "1", "title": "Test", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+        ]
+        output_str = self._make_list_output(todos, tmp_path)
+        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+        header = lines[0]
+        # Check that "Status" is preceded by exactly one space (not multiple)
+        status_pos = header.find("Status")
+        assert status_pos > 0 and header[status_pos - 1] == ' '
+        if status_pos > 1:
+            assert header[status_pos - 2] != ' ' or header[status_pos - 1] != ' ', "Multiple spaces before Status"
+
+    def test_fixed_width_columns_padded_consistently(self, tmp_path):
+        """Test that fixed-width columns are padded consistently."""
+        todos = [
+            {"id": "1", "title": "Test", "description": "", "due": "", "completed": False, "created_at": "", "priority": "medium"},
+        ]
+        output_str = self._make_list_output(todos, tmp_path)
+        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+        data_row = lines[1]
+        # The Created At column should be 25 chars wide
+        created_at_part = data_row[-25:]
+        assert len(created_at_part) == 25, f"Created At part length {len(created_at_part)} != 25"
+        # The status column should be 10 chars wide
+        status_part = data_row[1:11]  # after ID column (1 char) + space
+        assert len(status_part) == 10, f"Status part length {len(status_part)} != 10"

@@ -243,7 +243,20 @@ def handle_list(args, parser) -> int:
     # Ensure the column is at least as wide as the header text.
     id_width = max(id_width, len("ID"))
 
-    header = f"{'ID':<{id_width}} {'Title':<{title_width}} {'Status':<10} {'Priority':<10} {'Due':<15} {'Created At':<25}"
+    # Fixed column widths for Status, Priority, Due, and Created At.
+    status_width = 10
+    priority_width = 10
+    due_width = 15
+    created_at_width = 25
+
+    # Use a single space separator between all columns for uniform whitespace.
+    sep = " "
+
+    header = (
+        f"{'ID':<{id_width}}{sep}{'Title':<{title_width}}{sep}"
+        f"{'Status':<{status_width}}{sep}{'Priority':<{priority_width}}{sep}"
+        f"{'Due':<{due_width}}{sep}{'Created At':<{created_at_width}}"
+    )
     print(header)
     print("-" * len(header))
     for todo in todos:
@@ -252,7 +265,11 @@ def handle_list(args, parser) -> int:
         created_at = todo.created_at if todo.created_at else ""
         title = _truncate_title(todo.title, title_width)
         id_ = _truncate_title(todo.id, id_width)
-        print(f"{id_:<{id_width}} {title:<{title_width}} {status:<10} {todo.priority:<10} {due:<15} {created_at:<25}")
+        print(
+            f"{id_:<{id_width}}{sep}{title:<{title_width}}{sep}"
+            f"{status:<{status_width}}{sep}{todo.priority:<{priority_width}}{sep}"
+            f"{due:<{due_width}}{sep}{created_at:<{created_at_width}}"
+        )
 
     return 0
 
