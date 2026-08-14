@@ -4,7 +4,7 @@ A simple CLI todo list manager for Python.
 
 ## Features
 
-- Add, list, complete, modify, and delete todo items
+- Add, list, show, complete, modify, and delete todo items
 - Persistent storage in JSON format
 - File locking for concurrent access
 - Priority levels (low, medium, high) with filtering
@@ -70,6 +70,14 @@ snekdo delete <todo-id>
 ```bash
 snekdo modify <todo-id> --title "New title" --description "New description" --due "2024-12-31" --priority high
 ```
+
+### Show a todo
+
+```bash
+snekdo show <todo-id>
+```
+
+This displays all details of the specified todo item, including ID, Title, Description, Due, Priority, Status, and Created At.
 
 ## Storage
 

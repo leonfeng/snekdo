@@ -14,7 +14,7 @@ import json
 from nanoid import generate
 from snekdo.models import Todo
 from snekdo.storage import TodoStorage
-from snekdo.__main__ import main, handle_command, handle_add, handle_list, handle_complete, handle_delete, handle_modify
+from snekdo.__main__ import main, handle_command, handle_add, handle_list, handle_complete, handle_delete, handle_modify, handle_show
 
 
 class TestCLI:
@@ -1118,3 +1118,115 @@ class TestCLI:
             output_str = output.getvalue()
             assert "Pending todo" in output_str
             assert "Completed todo" in output_str
+
+    def test_show_todo(self, tmp_path):
+        """Test showing an existing todo item."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2027-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "medium",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "show"
+        args.todo_id = "1"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.get.return_value = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2027-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+                priority="medium",
+            )
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_show(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "ID: 1" in output_str
+            assert "Title: Test todo" in output_str
+            assert "Description: A test todo" in output_str
+            assert "Due: 2027-12-31" in output_str
+            assert "Priority: medium" in output_str
+            assert "Created At: 2024-01-01T00:00:00" in output_str
+
+    def test_show_todo_not_found(self, tmp_path):
+        """Test showing a non-existent todo item."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "show"
+        args.todo_id = "nonexistent"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.get.return_value = None
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_show(args, None)
+
+            assert result == 1
+            output_str = output.getvalue()
+            assert "not found" in output_str
+
+    def test_show_completed_todo(self, tmp_path):
+        """Test showing a completed todo item displays status correctly."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Done todo",
+                "description": "",
+                "due": None,
+                "completed": True,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "high",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "show"
+        args.todo_id = "1"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.get.return_value = Todo(
+                id="1",
+                title="Done todo",
+                description="",
+                due=None,
+                completed=True,
+                created_at="2024-01-01T00:00:00",
+                priority="high",
+            )
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_show(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "Status: ✓" in output_str

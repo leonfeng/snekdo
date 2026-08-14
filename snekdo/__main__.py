@@ -55,6 +55,10 @@ def main() -> int:
     modify_parser.add_argument("--due", help="New due date for the todo (e.g., 2024-12-31)")
     modify_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="New priority level")
 
+    # Show command
+    show_parser = subparsers.add_parser("show", help="Show details of a todo item")
+    show_parser.add_argument("todo_id", help="ID of the todo to show")
+
     try:
         args = parser.parse_args()
         return handle_command(args, parser)
@@ -75,6 +79,8 @@ def handle_command(args, parser) -> int:
             return handle_delete(args, parser)
         elif args.command == "modify":
             return handle_modify(args, parser)
+        elif args.command == "show":
+            return handle_show(args, parser)
         else:
             parser.print_help()
             return 0
@@ -201,6 +207,29 @@ def handle_modify(args, parser) -> int:
 
     storage.modify(args.todo_id, **update_data)
     print(f"Updated todo: {todo.title}")
+    return 0
+
+
+def handle_show(args, parser) -> int:
+    """Handle the show command."""
+    storage = TodoStorage(storage_path=args.storage)
+    todo = storage.get(args.todo_id)
+    if todo is None:
+        print(f"Error: Todo with ID {args.todo_id} not found")
+        return 1
+
+    status = "✓" if todo.completed else " "
+    due = todo.due if todo.due else ""
+    created_at = todo.created_at if todo.created_at else ""
+
+    print(f"ID: {todo.id}")
+    print(f"Title: {todo.title}")
+    print(f"Description: {todo.description}")
+    print(f"Due: {due}")
+    print(f"Priority: {todo.priority}")
+    print(f"Status: {status}")
+    print(f"Created At: {created_at}")
+
     return 0
 
 
