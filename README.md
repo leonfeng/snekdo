@@ -10,11 +10,18 @@ A simple CLI todo list manager for Python.
 - Priority levels (low, medium, high) with filtering
 - Sorting by created date, title, priority, or completion status, with reverse order support
 - Custom storage path via `--storage` flag
+- REST API backend via FastAPI with `snekdo serve`
 
 ## Installation
 
 ```bash
 pip install -e .
+```
+
+To use the REST API backend, install with the `api` extra:
+
+```bash
+pip install -e ".[api]"
 ```
 
 ## Usage
@@ -78,6 +85,34 @@ snekdo show <todo-id>
 ```
 
 This displays all details of the specified todo item, including ID, Title, Description, Due, Priority, Status, and Created At.
+
+### Serve the REST API
+
+Start the FastAPI server:
+
+```bash
+snekdo serve
+```
+
+This starts the server on `127.0.0.1:8000` by default. You can customize the host and port:
+
+```bash
+snekdo serve --host 0.0.0.0 --port 9000 --storage /path/to/todos.json
+```
+
+The API exposes the following endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/health` | Health check |
+| GET | `/api/v1/todos` | List all todos |
+| GET | `/api/v1/todos/{id}` | Show a single todo |
+| POST | `/api/v1/todos` | Add a new todo |
+| POST | `/api/v1/todos/{id}/complete` | Mark a todo as complete |
+| PUT | `/api/v1/todos/{id}` | Modify a todo |
+| DELETE | `/api/v1/todos/{id}` | Delete a todo |
+
+OpenAPI documentation is available at `/openapi.json` and a Swagger UI at `/docs`.
 
 ## Storage
 

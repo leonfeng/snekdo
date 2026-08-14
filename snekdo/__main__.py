@@ -7,6 +7,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from snekdo.api import create_app
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage
 
@@ -112,6 +113,12 @@ def create_parser() -> argparse.ArgumentParser:
     show_parser.add_argument("todo_id", help="ID of the todo to show")
     show_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
 
+    # Serve command
+    serve_parser = subparsers.add_parser("serve", help="Start the FastAPI server")
+    serve_parser.add_argument("--host", default="127.0.0.1", help="Host to bind the server")
+    serve_parser.add_argument("--port", type=int, default=8000, help="Port to bind the server")
+    serve_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+
     return parser
 
 
@@ -158,6 +165,8 @@ def handle_command(args, parser) -> int:
             return handle_modify(args, parser)
         elif args.command == "show":
             return handle_show(args, parser)
+        elif args.command == "serve":
+            return handle_serve(args, parser)
         else:
             parser.print_help()
             return 0
@@ -351,6 +360,23 @@ def handle_show(args, parser) -> int:
     print(f"Status: {status}")
     print(f"Created At: {created_at}")
 
+    return 0
+
+
+def handle_serve(args, parser) -> int:
+    """Handle the serve command by starting the FastAPI server."""
+    try:
+        import uvicorn
+    except ImportError:
+        print("Error: uvicorn is not installed. Install with: pip install uvicorn", file=sys.stderr)
+        return 1
+
+    storage_path = _get_storage_path(args)
+    app = create_app(storage_path=str(storage_path))
+    print(f"Starting snekdo API server on {args.host}:{args.port}")
+    print(f"Storage: {storage_path}")
+    print(f"OpenAPI docs: http://{args.host}:{args.port}/docs")
+    uvicorn.run(app, host=args.host, port=args.port)
     return 0
 
 

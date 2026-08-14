@@ -19,12 +19,13 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Utilities",
 ]
-dependencies = ["nanoid>=3.0"]
+dependencies = ["nanoid>=3.0", "fastapi>=0.100", "uvicorn>=0.20"]
 
 [project.scripts]
 snekdo = "snekdo.__main__:main"
 
 [project.optional-dependencies]
+api = ["fastapi>=0.100", "uvicorn>=0.20"]
 test = ["pytest>=7.0", "pytest-cov>=4.0"]
 
 [tool.setuptools.packages.find]
