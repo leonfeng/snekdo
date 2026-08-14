@@ -195,8 +195,14 @@ def handle_list(args, parser) -> int:
     if args.priority:
         todos = [t for t in todos if t.priority == args.priority]
 
-    # Sort by the specified field
+    # Validate the sort field
     sort_key = args.sort
+    valid_sort_fields = {"created_at", "title", "priority", "completed"}
+    if sort_key not in valid_sort_fields:
+        print(f"Error: Invalid sort field '{sort_key}'. Valid sort fields are: created_at, title, priority, completed", file=sys.stderr)
+        return 1
+
+    # Sort by the specified field
     if sort_key == "created_at":
         todos = sorted(todos, key=lambda x: _parse_created_at(x.created_at), reverse=args.reverse)
     elif sort_key == "title":
@@ -206,9 +212,6 @@ def handle_list(args, parser) -> int:
         todos = sorted(todos, key=lambda x: priority_order.get(x.priority, 1), reverse=args.reverse)
     elif sort_key == "completed":
         todos = sorted(todos, key=lambda x: x.completed, reverse=args.reverse)
-    else:
-        # Default to created_at if unknown sort field
-        todos = sorted(todos, key=lambda x: x.created_at, reverse=args.reverse)
 
     # Limit results
     if args.limit:

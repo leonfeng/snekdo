@@ -82,6 +82,7 @@ class TestCLI:
         args.status = "all"
         args.limit = None
         args.todo_id = None
+        args.sort = "created_at"
         args.storage = str(storage_file)
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
@@ -464,6 +465,7 @@ class TestCLI:
         args.limit = None
         args.todo_id = None
         args.priority = "high"
+        args.sort = "created_at"
         args.storage = str(storage_file)
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
@@ -1274,6 +1276,54 @@ class TestCLI:
             output_str = output.getvalue()
             assert "Pending todo" in output_str
             assert "Completed todo" in output_str
+
+    def test_list_invalid_sort_field(self, tmp_path):
+        """Test that an invalid sort field is rejected with an error."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "invalid_field"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        result = handle_list(args, None)
+        assert result == 1
+
+    def test_list_invalid_sort_field_error_message(self, tmp_path):
+        """Test that the error message for an invalid sort field lists valid fields."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.todo_id = None
+        args.sort = "invalid_field"
+        args.reverse = False
+        args.priority = None
+        args.storage = str(storage_file)
+
+        import io
+        output = io.StringIO()
+        with patch("builtins.print", return_value=None) as mock_print:
+            mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + chr(10))
+            result = handle_list(args, None)
+
+        assert result == 1
+        output_str = output.getvalue()
+        assert "Invalid sort field" in output_str
+        assert "invalid_field" in output_str
+        assert "created_at" in output_str
+        assert "title" in output_str
+        assert "priority" in output_str
+        assert "completed" in output_str
 
     def test_show_todo(self, tmp_path):
         """Test showing an existing todo item."""
