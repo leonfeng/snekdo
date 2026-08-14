@@ -38,13 +38,13 @@ def validate_due_date(due_date: str) -> str:
 
 
 
-def main() -> int:
-    """Main entry point for the CLI."""
+def create_parser() -> argparse.ArgumentParser:
+    """Create the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
         prog="snekdo",
         description="A simple CLI todo list manager",
     )
-    parser.add_argument("--storage", help="Path to the storage file")
+    parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
     parser.add_argument("--debug", action="store_true", help="Print debug information")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -55,6 +55,7 @@ def main() -> int:
     add_parser.add_argument("--description", default="", help="Description of the todo")
     add_parser.add_argument("--due", help="Due date (e.g., 2024-12-31)")
     add_parser.add_argument("--priority", default="medium", choices=["low", "medium", "high"], help="Priority level (low, medium, high)")
+    add_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
 
     # List command
     list_parser = subparsers.add_parser("list", help="List all todo items")
@@ -63,14 +64,17 @@ def main() -> int:
     list_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="Filter by priority level")
     list_parser.add_argument("--sort", default="created_at", choices=["created_at", "title", "priority", "completed"], help="Sort by field (created_at, title, priority, completed)")
     list_parser.add_argument("--reverse", action="store_true", default=False, dest="reverse", help="Reverse the sort order")
+    list_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
 
     # Complete command
     complete_parser = subparsers.add_parser("complete", help="Mark a todo as complete")
     complete_parser.add_argument("todo_id", help="ID of the todo to complete")
+    complete_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
 
     # Delete command
     delete_parser = subparsers.add_parser("delete", help="Delete a todo")
     delete_parser.add_argument("todo_id", help="ID of the todo to delete")
+    delete_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
 
     # Modify command
     modify_parser = subparsers.add_parser("modify", help="Modify an existing todo")
@@ -79,10 +83,19 @@ def main() -> int:
     modify_parser.add_argument("--description", default=None, help="New description for the todo")
     modify_parser.add_argument("--due", help="New due date for the todo (e.g., 2024-12-31)")
     modify_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="New priority level")
+    modify_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
 
     # Show command
     show_parser = subparsers.add_parser("show", help="Show details of a todo item")
     show_parser.add_argument("todo_id", help="ID of the todo to show")
+    show_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+
+    return parser
+
+
+def main() -> int:
+    """Main entry point for the CLI."""
+    parser = create_parser()
 
     try:
         args = parser.parse_args()

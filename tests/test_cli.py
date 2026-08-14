@@ -1451,3 +1451,69 @@ class TestCLI:
             result = handle_modify(args, None)
 
             assert result == 1
+
+
+class TestStorageFlagPlacement:
+    """Tests for the --storage flag working in both global and per-subcommand positions."""
+
+    def test_storage_before_subcommand(self):
+        """Test that --storage works before the subcommand (backward compatibility)."""
+        from snekdo.__main__ import create_parser
+        parser = create_parser()
+        args = parser.parse_args(['--storage', '/tmp/test.json', 'list'])
+        assert args.storage == "/tmp/test.json"
+        assert args.command == "list"
+
+    def test_storage_after_subcommand_list(self):
+        """Test that --storage works after the list subcommand."""
+        from snekdo.__main__ import create_parser
+        parser = create_parser()
+        args = parser.parse_args(['list', '--storage', '/tmp/test.json'])
+        assert args.storage == "/tmp/test.json"
+        assert args.command == "list"
+
+    def test_storage_after_subcommand_add(self):
+        """Test that --storage works after the add subcommand."""
+        from snekdo.__main__ import create_parser
+        parser = create_parser()
+        args = parser.parse_args(['add', '--storage', '/tmp/test.json', '--title', 'Test'])
+        assert args.storage == "/tmp/test.json"
+        assert args.command == "add"
+        assert args.title == "Test"
+
+    def test_storage_after_subcommand_complete(self):
+        """Test that --storage works after the complete subcommand."""
+        from snekdo.__main__ import create_parser
+        parser = create_parser()
+        args = parser.parse_args(['complete', '--storage', '/tmp/test.json', '123'])
+        assert args.storage == "/tmp/test.json"
+        assert args.command == "complete"
+        assert args.todo_id == "123"
+
+    def test_storage_after_subcommand_delete(self):
+        """Test that --storage works after the delete subcommand."""
+        from snekdo.__main__ import create_parser
+        parser = create_parser()
+        args = parser.parse_args(['delete', '--storage', '/tmp/test.json', '123'])
+        assert args.storage == "/tmp/test.json"
+        assert args.command == "delete"
+        assert args.todo_id == "123"
+
+    def test_storage_after_subcommand_modify(self):
+        """Test that --storage works after the modify subcommand."""
+        from snekdo.__main__ import create_parser
+        parser = create_parser()
+        args = parser.parse_args(['modify', '--storage', '/tmp/test.json', '123', '--title', 'New Title'])
+        assert args.storage == "/tmp/test.json"
+        assert args.command == "modify"
+        assert args.todo_id == "123"
+        assert args.title == "New Title"
+
+    def test_storage_after_subcommand_show(self):
+        """Test that --storage works after the show subcommand."""
+        from snekdo.__main__ import create_parser
+        parser = create_parser()
+        args = parser.parse_args(['show', '--storage', '/tmp/test.json', '123'])
+        assert args.storage == "/tmp/test.json"
+        assert args.command == "show"
+        assert args.todo_id == "123"
