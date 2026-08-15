@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -68,6 +69,7 @@ def register_web_routes(router: APIRouter, storage_path: Optional[str] = None) -
             user = User(
                 username=user_data.username,
                 password_hash=hashed_password,
+                created_at=datetime.now().isoformat(),
             )
             user_storage.add(user)
             return RedirectResponse(url="/auth/login", status_code=303)

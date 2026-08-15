@@ -40,6 +40,20 @@ def client(tmp_path: Path):
     return test_client
 
 
+class TestRegistration:
+    """Tests for the web registration flow."""
+
+    def test_web_registration_sets_created_at(self, client):
+        """Test that web registration records a non-empty created_at."""
+        from snekdo.storage import UserStorage
+
+        user_storage = UserStorage(storage_path=str(client.app.state.user_id and client.app.state.storage_path.replace("todos.json", "users.json")))
+        user = user_storage.get("testuser")
+        assert user is not None
+        assert user.created_at != ""
+        assert "T" in user.created_at
+
+
 class TestListPage:
     """Tests for the todo list page."""
 
