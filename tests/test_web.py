@@ -14,13 +14,30 @@ from snekdo.web import register_web_routes, get_template_env
 
 @pytest.fixture
 def client(tmp_path: Path):
-    """Create a test client with a temporary storage file."""
+    """Create a test client with a temporary storage file and a logged-in user."""
     storage_file = tmp_path / "todos.json"
     app = create_app(storage_path=str(storage_file))
     app.state.template_env = get_template_env()
     app.state.storage_path = str(storage_file)
     register_web_routes(app, storage_path=str(storage_file))
-    return TestClient(app)
+    test_client = TestClient(app)
+
+    # Register and login a user so all protected routes have a token
+    test_client.post(
+        "/auth/register",
+        data={"username": "testuser", "password": "password123"},
+    )
+    test_client.post(
+        "/auth/login",
+        data={"username": "testuser", "password": "password123"},
+    )
+    # Store the user_id on the app state for tests to use (get it from storage)
+    from snekdo.storage import UserStorage
+    user_storage = UserStorage(storage_path=str(tmp_path / "users.json"))
+    user = user_storage.get("testuser")
+    app.state.user_id = user.id
+
+    return test_client
 
 
 class TestListPage:
@@ -77,7 +94,7 @@ class TestShowPage:
         from snekdo.models import Todo
         from snekdo.storage import TodoStorage
         storage = TodoStorage(storage_path=str(storage_file))
-        todo = Todo(title="Test todo")
+        todo = Todo(title="Test todo", user_id=client.app.state.user_id)
         storage.add(todo)
 
         response = client.get(f"/todos/{todo.id}")
@@ -97,7 +114,7 @@ class TestEditPage:
         from snekdo.storage import TodoStorage
         storage_file = Path(client.app.state.storage_path)
         storage = TodoStorage(storage_path=str(storage_file))
-        todo = Todo(title="Original title")
+        todo = Todo(title="Original title", user_id=client.app.state.user_id)
         storage.add(todo)
 
         response = client.get(f"/todos/{todo.id}/edit")
@@ -110,7 +127,7 @@ class TestEditPage:
         from snekdo.storage import TodoStorage
         storage_file = Path(client.app.state.storage_path)
         storage = TodoStorage(storage_path=str(storage_file))
-        todo = Todo(title="Original", description="Old desc")
+        todo = Todo(title="Original", description="Old desc", user_id=client.app.state.user_id)
         storage.add(todo)
 
         response = client.post(
@@ -131,7 +148,7 @@ class TestEditPage:
         from snekdo.storage import TodoStorage
         storage_file = Path(client.app.state.storage_path)
         storage = TodoStorage(storage_path=str(storage_file))
-        todo = Todo(title="Original")
+        todo = Todo(title="Original", user_id=client.app.state.user_id)
         storage.add(todo)
 
         response = client.post(
@@ -150,7 +167,7 @@ class TestCompleteAction:
         from snekdo.storage import TodoStorage
         storage_file = Path(client.app.state.storage_path)
         storage = TodoStorage(storage_path=str(storage_file))
-        todo = Todo(title="Test todo")
+        todo = Todo(title="Test todo", user_id=client.app.state.user_id)
         storage.add(todo)
 
         response = client.post(
@@ -165,7 +182,7 @@ class TestCompleteAction:
         from snekdo.storage import TodoStorage
         storage_file = Path(client.app.state.storage_path)
         storage = TodoStorage(storage_path=str(storage_file))
-        todo = Todo(title="Test todo")
+        todo = Todo(title="Test todo", user_id=client.app.state.user_id)
         storage.add(todo)
 
         response = client.post(
@@ -188,7 +205,7 @@ class TestDeleteAction:
         from snekdo.storage import TodoStorage
         storage_file = Path(client.app.state.storage_path)
         storage = TodoStorage(storage_path=str(storage_file))
-        todo = Todo(title="Test todo")
+        todo = Todo(title="Test todo", user_id=client.app.state.user_id)
         storage.add(todo)
 
         response = client.post(
@@ -203,7 +220,7 @@ class TestDeleteAction:
         from snekdo.storage import TodoStorage
         storage_file = Path(client.app.state.storage_path)
         storage = TodoStorage(storage_path=str(storage_file))
-        todo = Todo(title="Test todo")
+        todo = Todo(title="Test todo", user_id=client.app.state.user_id)
         storage.add(todo)
 
         response = client.post(

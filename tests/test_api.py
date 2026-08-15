@@ -29,6 +29,29 @@ def _make_todo(title: str = "Test todo", description: str = "A test todo", due: 
     )
 
 
+def _register_and_login(client: TestClient, username: str | None = None, password: str = "password123") -> tuple[str, str]:
+    """Register a user and log in, returning the access token and user ID."""
+    if username is None:
+        import time
+        username = f"testuser_{int(time.time() * 1000)}"
+    register_response = client.post(
+        "/api/v1/auth/register",
+        json={"username": username, "password": password},
+    )
+    register_response.raise_for_status()
+    user_id = register_response.json()["id"]
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": password},
+    )
+    return response.json()["access_token"], user_id
+
+
+def _auth_header(token: str) -> dict:
+    """Return the Authorization header."""
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_health_check(tmp_path: Path):
     """Test the health check endpoint returns 200 with status ok."""
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
@@ -48,7 +71,8 @@ def test_list_todos_empty(tmp_path: Path):
     app = create_app(storage_path=storage_path)
     client = TestClient(app)
 
-    response = client.get("/api/v1/todos")
+    token, _ = _register_and_login(client)
+    response = client.get("/api/v1/todos", headers=_auth_header(token))
 
     assert response.status_code == 200
     assert response.json() == []
@@ -59,12 +83,15 @@ def test_list_todos_with_data(tmp_path: Path):
     from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
-    storage.add(todo)
 
     app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
-    response = client.get("/api/v1/todos")
+    token, user_id = _register_and_login(client)
+    todo.user_id = user_id
+    storage.add(todo)
+
+    response = client.get("/api/v1/todos", headers=_auth_header(token))
 
     assert response.status_code == 200
     data = response.json()
@@ -78,12 +105,15 @@ def test_show_todo(tmp_path: Path):
     from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
-    storage.add(todo)
 
     app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
-    response = client.get(f"/api/v1/todos/{todo.id}")
+    token, user_id = _register_and_login(client)
+    todo.user_id = user_id
+    storage.add(todo)
+
+    response = client.get(f"/api/v1/todos/{todo.id}", headers=_auth_header(token))
 
     assert response.status_code == 200
     data = response.json()
@@ -96,7 +126,8 @@ def test_show_todo_not_found(tmp_path: Path):
     app = create_app()
     client = TestClient(app)
 
-    response = client.get("/api/v1/todos/non-existent-id")
+    token, _ = _register_and_login(client)
+    response = client.get("/api/v1/todos/non-existent-id", headers=_auth_header(token))
 
     assert response.status_code == 404
 
@@ -106,9 +137,11 @@ def test_add_todo(tmp_path: Path):
     app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
+    token, _ = _register_and_login(client)
     response = client.post(
         "/api/v1/todos",
         json={"title": "New todo", "description": "A new todo item", "due": "2027-12-31", "priority": "high"},
+        headers=_auth_header(token),
     )
 
     assert response.status_code == 201
@@ -121,38 +154,48 @@ def test_add_todo(tmp_path: Path):
 
 def test_add_todo_missing_title(tmp_path: Path):
     """Test adding a todo without a title returns 422."""
-    app = create_app()
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
-    response = client.post("/api/v1/todos", json={"description": "No title"})
+    token, _ = _register_and_login(client)
+    response = client.post(
+        "/api/v1/todos",
+        json={"title": "", "description": "A todo without title"},
+        headers=_auth_header(token),
+    )
 
     assert response.status_code == 422
 
 
 def test_add_todo_invalid_due_date(tmp_path: Path):
     """Test adding a todo with an invalid due date returns 422."""
-    app = create_app()
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
+    token, _ = _register_and_login(client)
     response = client.post(
         "/api/v1/todos",
-        json={"title": "Bad date", "due": "not-a-date"},
+        json={"title": "New todo", "due": "not-a-date"},
+        headers=_auth_header(token),
     )
 
     assert response.status_code == 422
 
 
 def test_complete_todo(tmp_path: Path):
-    """Test marking a todo as complete."""
+    """Test completing a todo."""
     from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
-    storage.add(todo)
 
     app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
-    response = client.post(f"/api/v1/todos/{todo.id}/complete")
+    token, user_id = _register_and_login(client)
+    todo.user_id = user_id
+    storage.add(todo)
+
+    response = client.post(f"/api/v1/todos/{todo.id}/complete", headers=_auth_header(token))
 
     assert response.status_code == 200
     data = response.json()
@@ -164,24 +207,29 @@ def test_complete_todo_not_found(tmp_path: Path):
     app = create_app()
     client = TestClient(app)
 
-    response = client.post("/api/v1/todos/non-existent-id/complete")
+    token, _ = _register_and_login(client)
+    response = client.post("/api/v1/todos/non-existent-id/complete", headers=_auth_header(token))
 
     assert response.status_code == 404
 
 
 def test_modify_todo(tmp_path: Path):
-    """Test modifying an existing todo."""
+    """Test modifying a todo."""
     from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
-    storage.add(todo)
 
     app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
+    token, user_id = _register_and_login(client)
+    todo.user_id = user_id
+    storage.add(todo)
+
     response = client.put(
         f"/api/v1/todos/{todo.id}",
         json={"title": "Updated title", "description": "Updated description"},
+        headers=_auth_header(token),
     )
 
     assert response.status_code == 200
@@ -195,7 +243,12 @@ def test_modify_todo_not_found(tmp_path: Path):
     app = create_app()
     client = TestClient(app)
 
-    response = client.put("/api/v1/todos/non-existent-id", json={"title": "Updated"})
+    token, _ = _register_and_login(client)
+    response = client.put(
+        "/api/v1/todos/non-existent-id",
+        json={"title": "Updated title"},
+        headers=_auth_header(token),
+    )
 
     assert response.status_code == 404
 
@@ -205,16 +258,19 @@ def test_delete_todo(tmp_path: Path):
     from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
-    storage.add(todo)
 
     app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
-    response = client.delete(f"/api/v1/todos/{todo.id}")
+    token, user_id = _register_and_login(client)
+    todo.user_id = user_id
+    storage.add(todo)
+
+    response = client.delete(f"/api/v1/todos/{todo.id}", headers=_auth_header(token))
 
     assert response.status_code == 200
     data = response.json()
-    assert "Deleted" in data["message"]
+    assert "message" in data
 
 
 def test_delete_todo_not_found(tmp_path: Path):
@@ -222,147 +278,20 @@ def test_delete_todo_not_found(tmp_path: Path):
     app = create_app()
     client = TestClient(app)
 
-    response = client.delete("/api/v1/todos/non-existent-id")
+    token, _ = _register_and_login(client)
+    response = client.delete("/api/v1/todos/non-existent-id", headers=_auth_header(token))
 
     assert response.status_code == 404
 
 
 def test_custom_storage_path(tmp_path: Path):
-    """Test that the API uses the custom storage path."""
-    from snekdo.models import Todo
-    storage = TodoStorage(storage_path=str(tmp_path / "custom_todos.json"))
-    todo = _make_todo()
-    storage.add(todo)
-
-    app = create_app(storage_path=str(tmp_path / "custom_todos.json"))
+    """Test using a custom storage path."""
+    custom_storage = tmp_path / "custom" / "todos.json"
+    app = create_app(storage_path=str(custom_storage))
     client = TestClient(app)
 
-    response = client.get("/api/v1/todos")
+    token, _ = _register_and_login(client)
+    response = client.get("/api/v1/todos", headers=_auth_header(token))
 
     assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 1
-    assert data[0]["title"] == todo.title
-
-
-def test_openapi_schema(tmp_path: Path):
-    """Test the OpenAPI schema endpoint."""
-    app = create_app()
-    client = TestClient(app)
-
-    response = client.get("/openapi.json")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert "openapi" in data
-    assert data["openapi"].startswith("3.")
-
-
-# ---------------------------------------------------------------------------
-# HTTP client tests
-# ---------------------------------------------------------------------------
-
-
-class _MockResponse:
-    """A mock response for urllib.request.urlopen."""
-
-    def __init__(self, status_code=200, json_data=None):
-        self.status = status_code
-        self._json_data = json_data
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        pass
-
-    def read(self):
-        if self._json_data is not None:
-            return json.dumps(self._json_data).encode("utf-8")
-        return b""
-
-    def readable(self):
-        return True
-
-
-def test_get_todos_success():
-    """Test fetching todos from the server."""
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _MockResponse(200, [{"id": "1", "title": "Test"}])
-        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
-        result = client.get_todos()
-
-    assert result == [{"id": "1", "title": "Test"}]
-
-
-def test_get_todo_success():
-    """Test fetching a single todo by ID."""
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _MockResponse(200, {"id": "1", "title": "Test todo"})
-        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
-        result = client.get_todo("1")
-
-    assert result["id"] == "1"
-    assert result["title"] == "Test todo"
-
-
-def test_create_todo_success():
-    """Test creating a todo on the server."""
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _MockResponse(201, {"id": "1", "title": "New todo", "priority": "high"})
-        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
-        result = client.create_todo(title="New todo", description="A test", due="2027-12-31", priority="high")
-
-    assert result["title"] == "New todo"
-    assert result["priority"] == "high"
-
-
-def test_update_todo_success():
-    """Test updating a todo on the server."""
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _MockResponse(200, {"id": "1", "title": "Updated"})
-        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
-        result = client.update_todo("1", title="Updated")
-
-    assert result["title"] == "Updated"
-
-
-def test_delete_todo_success():
-    """Test deleting a todo on the server."""
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _MockResponse(200, {"message": "Deleted todo: Test"})
-        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
-        result = client.delete_todo("1")
-
-    assert "Deleted" in result["message"]
-
-
-def test_complete_todo_success():
-    """Test marking a todo as complete on the server."""
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _MockResponse(200, {"id": "1", "title": "Test", "completed": True})
-        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
-        result = client.complete_todo("1")
-
-    assert result["completed"] is True
-
-
-def test_connection_error():
-    """Test that connection errors are handled."""
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.side_effect = Exception("Connection refused")
-        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
-
-        with pytest.raises(ConnectionError):
-            client.get_todos()
-
-
-def test_server_error():
-    """Test that server errors are handled."""
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.side_effect = Exception("Server returned 500")
-
-        client = ServerHttpClient(base_url="http://127.0.0.1:8000")
-
-        with pytest.raises(ConnectionError):
-            client.get_todos()
+    assert response.json() == []

@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 
-@dataclass
 class SyncSummary:
     """Summary of a sync operation."""
 
@@ -29,6 +28,27 @@ class SyncSummary:
         if self.errors:
             parts.append(f"errors={len(self.errors)}")
         return "Sync summary: " + ", ".join(parts)
+
+
+CREDENTIALS_PATH = Path.home() / ".snekdo" / "credentials.json"
+
+
+def _read_credentials(credentials_path: Optional[Path] = None) -> Optional[dict]:
+    """Read the stored credentials from disk.
+
+    Args:
+        credentials_path: Path to the credentials file. Defaults to ``~/.snekdo/credentials.json``.
+
+    Returns:
+        The credentials dict with ``access_token`` and ``token_type``,
+        or ``None`` if the file does not exist.
+    """
+    if credentials_path is None:
+        credentials_path = CREDENTIALS_PATH
+    if not credentials_path.exists():
+        return None
+    with open(credentials_path, "r") as f:
+        return json.load(f)
 
 
 class ServerHttpClient:
@@ -51,6 +71,7 @@ class ServerHttpClient:
         method: str,
         path: str,
         data: Optional[dict] = None,
+        credentials_path: Optional[Path] = None,
     ) -> dict:
         """Send an HTTP request to the server.
 
@@ -58,6 +79,7 @@ class ServerHttpClient:
             method: HTTP method (GET, POST, PUT, DELETE).
             path: URL path (without base URL).
             data: Optional JSON body data.
+            credentials_path: Optional path to the credentials file.
 
         Returns:
             The JSON response body as a dict.
@@ -65,10 +87,19 @@ class ServerHttpClient:
         Raises:
             ServerError: If the server returns a non-2xx status.
             ConnectionError: If the connection fails.
+            AuthenticationError: If the server returns 401 or 403.
         """
         url = f"{self.base_url}{path}"
         body = None
         headers = {"Content-Type": "application/json"}
+
+        # Include authentication token if available
+        credentials = _read_credentials(credentials_path)
+        if credentials is not None:
+            token = credentials.get("access_token")
+            token_type = credentials.get("token_type", "bearer")
+            if token:
+                headers["Authorization"] = f"{token_type} {token}"
 
         if data is not None:
             body = json.dumps(data).encode("utf-8")
@@ -92,6 +123,10 @@ class ServerHttpClient:
                 return {}
         except urllib.error.HTTPError as e:
             body_text = e.read().decode("utf-8") if e.readable() else ""
+            if e.code in (401, 403):
+                raise AuthenticationError(
+                    f"Authentication failed: {e.code} {'Unauthorized' if e.code == 401 else 'Forbidden'}"
+                ) from e
             raise ServerError(
                 f"Server returned status {e.code}: {body_text}"
             ) from e
@@ -100,19 +135,23 @@ class ServerHttpClient:
         except Exception as e:
             raise ConnectionError(f"Connection error: {e}") from e
 
-    def get_todos(self) -> list[dict]:
+    def get_todos(self, credentials_path: Optional[Path] = None) -> list[dict]:
         """Fetch all todos from the server.
+
+        Args:
+            credentials_path: Optional path to the credentials file.
 
         Returns:
             A list of todo dicts.
         """
-        return self._request("GET", "/api/v1/todos")
+        return self._request("GET", "/api/v1/todos", credentials_path=credentials_path)
 
-    def get_todo(self, todo_id: str) -> dict:
+    def get_todo(self, todo_id: str, credentials_path: Optional[Path] = None) -> dict:
         """Fetch a single todo by ID.
 
         Args:
             todo_id: The ID of the todo.
+            credentials_path: Optional path to the credentials file.
 
         Returns:
             The todo dict.
@@ -120,9 +159,11 @@ class ServerHttpClient:
         Raises:
             ServerError: If the todo is not found.
         """
-        return self._request("GET", f"/api/v1/todos/{todo_id}")
+        return self._request(
+            "GET", f"/api/v1/todos/{todo_id}", credentials_path=credentials_path
+        )
 
-    def create_todo(self, title: str, description: str = "", due: Optional[str] = None, priority: str = "medium") -> dict:
+    def create_todo(self, title: str, description: str = "", due: Optional[str] = None, priority: str = "medium", credentials_path: Optional[Path] = None) -> dict:
         """Create a new todo on the server.
 
         Args:
@@ -130,6 +171,7 @@ class ServerHttpClient:
             description: The description of the todo.
             due: The due date (YYYY-MM-DD format).
             priority: The priority level (low, medium, high).
+            credentials_path: Optional path to the credentials file.
 
         Returns:
             The created todo dict.
@@ -137,9 +179,9 @@ class ServerHttpClient:
         data: dict = {"title": title, "description": description, "priority": priority}
         if due:
             data["due"] = due
-        return self._request("POST", "/api/v1/todos", data=data)
+        return self._request("POST", "/api/v1/todos", data=data, credentials_path=credentials_path)
 
-    def update_todo(self, todo_id: str, title: Optional[str] = None, description: Optional[str] = None, due: Optional[str] = None, priority: Optional[str] = None) -> dict:
+    def update_todo(self, todo_id: str, title: Optional[str] = None, description: Optional[str] = None, due: Optional[str] = None, priority: Optional[str] = None, credentials_path: Optional[Path] = None) -> dict:
         """Update an existing todo on the server.
 
         Args:
@@ -148,6 +190,7 @@ class ServerHttpClient:
             description: New description.
             due: New due date.
             priority: New priority.
+            credentials_path: Optional path to the credentials file.
 
         Returns:
             The updated todo dict.
@@ -161,29 +204,35 @@ class ServerHttpClient:
             data["due"] = due
         if priority is not None:
             data["priority"] = priority
-        return self._request("PUT", f"/api/v1/todos/{todo_id}", data=data)
+        return self._request(
+            "PUT", f"/api/v1/todos/{todo_id}", data=data, credentials_path=credentials_path
+        )
 
-    def delete_todo(self, todo_id: str) -> dict:
+    def delete_todo(self, todo_id: str, credentials_path: Optional[Path] = None) -> dict:
         """Delete a todo on the server.
 
         Args:
             todo_id: The ID of the todo.
+            credentials_path: Optional path to the credentials file.
 
         Returns:
             The message response dict.
         """
-        return self._request("DELETE", f"/api/v1/todos/{todo_id}")
+        return self._request("DELETE", f"/api/v1/todos/{todo_id}", credentials_path=credentials_path)
 
-    def complete_todo(self, todo_id: str) -> dict:
+    def complete_todo(self, todo_id: str, credentials_path: Optional[Path] = None) -> dict:
         """Mark a todo as complete on the server.
 
         Args:
             todo_id: The ID of the todo.
+            credentials_path: Optional path to the credentials file.
 
         Returns:
             The updated todo dict.
         """
-        return self._request("POST", f"/api/v1/todos/{todo_id}/complete")
+        return self._request(
+            "POST", f"/api/v1/todos/{todo_id}/complete", credentials_path=credentials_path
+        )
 
 
 class ServerError(Exception):
@@ -192,3 +241,7 @@ class ServerError(Exception):
 
 class ConnectionError(Exception):
     """Raised when the client cannot connect to the server."""
+
+
+class AuthenticationError(Exception):
+    """Raised when authentication fails (401/403)."""

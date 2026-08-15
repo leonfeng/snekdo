@@ -8,7 +8,8 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from snekdo.models import Todo
+from snekdo.api_auth import get_current_user, create_auth_router, get_current_user_factory
+from snekdo.models import Todo, User
 from snekdo.storage import StorageError, TodoStorage
 
 
@@ -110,6 +111,12 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
     def _storage() -> TodoStorage:
         return get_storage(storage_path)
 
+    # Override the default get_current_user to use the correct storage path
+    app.dependency_overrides[get_current_user] = get_current_user_factory(storage_path=storage_path)
+
+    # Include authentication routes (public)
+    app.include_router(create_auth_router(storage_path=storage_path))
+
     @app.get("/api/v1/health", response_model=HealthResponse)
     async def health_check() -> HealthResponse:
         """Health check endpoint."""
@@ -118,6 +125,7 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
     @app.get("/api/v1/todos", response_model=list[TodoResponse])
     async def list_todos(
         storage: TodoStorage = Depends(_storage),
+        current_user: User = Depends(get_current_user),
         status: Optional[str] = Query(default=None, enum=["all", "pending", "completed"]),
         priority: Optional[str] = Query(default=None, enum=["low", "medium", "high"]),
         sort: Optional[str] = Query(default="created_at", enum=["created_at", "title", "priority", "completed"]),
@@ -125,7 +133,7 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
         limit: Optional[int] = Query(default=None, ge=1),
     ) -> list[TodoResponse]:
         """List all todos, optionally filtered and sorted."""
-        todos = storage.load()
+        todos = storage.load(user_id=current_user.id)
 
         if status == "pending":
             todos = [t for t in todos if not t.completed]
@@ -156,9 +164,10 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
     async def show_todo(
         todo_id: str,
         storage: TodoStorage = Depends(_storage),
+        current_user: User = Depends(get_current_user),
     ) -> TodoResponse:
         """Show a single todo by ID."""
-        todo = storage.get(todo_id)
+        todo = storage.get(todo_id, user_id=current_user.id)
         if todo is None:
             raise HTTPException(status_code=404, detail=f"Todo with ID '{todo_id}' not found")
         return TodoResponse.from_todo(todo)
@@ -167,6 +176,7 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
     async def add_todo(
         todo_data: TodoCreate,
         storage: TodoStorage = Depends(_storage),
+        current_user: User = Depends(get_current_user),
     ) -> TodoResponse:
         """Add a new todo."""
         try:
@@ -175,6 +185,7 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=str(e))
         todo = todo_data.to_todo()
         todo.due = due
+        todo.user_id = current_user.id
         storage.add(todo)
         return TodoResponse.from_todo(todo)
 
@@ -182,9 +193,10 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
     async def complete_todo(
         todo_id: str,
         storage: TodoStorage = Depends(_storage),
+        current_user: User = Depends(get_current_user),
     ) -> TodoResponse:
         """Mark a todo as complete."""
-        todo = storage.get(todo_id)
+        todo = storage.get(todo_id, user_id=current_user.id)
         if todo is None:
             raise HTTPException(status_code=404, detail=f"Todo with ID '{todo_id}' not found")
         storage.complete(todo_id)
@@ -196,9 +208,10 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
         todo_id: str,
         update_data: TodoUpdate,
         storage: TodoStorage = Depends(_storage),
+        current_user: User = Depends(get_current_user),
     ) -> TodoResponse:
         """Modify an existing todo."""
-        todo = storage.get(todo_id)
+        todo = storage.get(todo_id, user_id=current_user.id)
         if todo is None:
             raise HTTPException(status_code=404, detail=f"Todo with ID '{todo_id}' not found")
 
@@ -226,9 +239,10 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
     async def delete_todo(
         todo_id: str,
         storage: TodoStorage = Depends(_storage),
+        current_user: User = Depends(get_current_user),
     ) -> MessageResponse:
         """Delete a todo."""
-        todo = storage.get(todo_id)
+        todo = storage.get(todo_id, user_id=current_user.id)
         if todo is None:
             raise HTTPException(status_code=404, detail=f"Todo with ID '{todo_id}' not found")
         storage.delete(todo_id)

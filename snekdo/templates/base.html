@@ -34,6 +34,13 @@
         nav a:hover {
             color: #007bff;
         }
+        nav a.logout {
+            float: right;
+            color: #dc3545;
+        }
+        nav a.logout:hover {
+            color: #a71d2a;
+        }
         h1 {
             margin-top: 0;
             margin-bottom: 1rem;
@@ -147,6 +154,7 @@
             <a href="/">snekdo</a>
             <a href="/todos">Todos</a>
             <a href="/todos/add">Add New</a>
+            <a href="/auth/logout" class="logout">Logout</a>
         </nav>
         <h1>{{ title }}</h1>
         {% block content %}{% endblock %}

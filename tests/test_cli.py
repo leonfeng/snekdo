@@ -2516,9 +2516,13 @@ class TestSyncCommand:
             result = handle_sync(args, None)
 
             assert result == 0
-            mock_client.update_todo.assert_called_once_with(
-                todo_id="1", title="Local version", description="", due=None, priority="medium"
-            )
+            call_kwargs = mock_client.update_todo.call_args[1]
+            assert call_kwargs["todo_id"] == "1"
+            assert call_kwargs["title"] == "Local version"
+            assert call_kwargs["description"] == ""
+            assert call_kwargs["due"] is None
+            assert call_kwargs["priority"] == "medium"
+            assert "credentials_path" in call_kwargs
 
     def test_sync_server_unavailable(self, tmp_path, monkeypatch):
         """Test that sync handles server connection errors."""

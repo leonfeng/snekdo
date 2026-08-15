@@ -3,15 +3,58 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from snekdo.api import create_app
 from snekdo.api_client import ConnectionError, ServerHttpClient, ServerError, SyncSummary
 from snekdo.web import register_web_routes
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage
+
+
+CREDENTIALS_PATH = Path.home() / ".snekdo" / "credentials.json"
+
+
+def _get_credentials_path(storage_path: Optional[Path] = None) -> Path:
+    """Return the path to the credentials file.
+
+    Uses the default ``~/.snekdo/credentials.json`` unless a custom
+    storage path is provided, in which case the credentials are stored
+    alongside the storage file.
+    """
+    if storage_path is not None:
+        return storage_path.parent / ".snekdo_credentials.json"
+    return CREDENTIALS_PATH
+
+
+def _read_credentials(credentials_path: Path) -> Optional[dict]:
+    """Read the stored credentials from disk.
+
+    Returns:
+        The credentials dict with ``access_token`` and ``token_type``,
+        or ``None`` if the file does not exist.
+    """
+    if not credentials_path.exists():
+        return None
+    with open(credentials_path, "r") as f:
+        return json.load(f)
+
+
+def _write_credentials(credentials_path: Path, access_token: str, token_type: str = "bearer") -> None:
+    """Write credentials to disk."""
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(credentials_path, "w") as f:
+        json.dump({"access_token": access_token, "token_type": token_type}, f, indent=2)
+
+
+def _delete_credentials(credentials_path: Path) -> None:
+    """Delete the credentials file."""
+    if credentials_path.exists():
+        credentials_path.unlink()
 
 
 def validate_due_date(due_date: str) -> str:
@@ -127,6 +170,24 @@ def create_parser() -> argparse.ArgumentParser:
     sync_parser.add_argument("--direction", choices=["pull", "push", "both"], default="both", help="Sync direction")
     sync_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
 
+    # Register command
+    register_parser = subparsers.add_parser("register", help="Register a new account")
+    register_parser.add_argument("--username", required=True, help="Username for the new account")
+    register_parser.add_argument("--password", required=True, help="Password for the new account")
+    register_parser.add_argument("--server", default="http://127.0.0.1:8000", help="Server base URL")
+    register_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+
+    # Login command
+    login_parser = subparsers.add_parser("login", help="Log in to an existing account")
+    login_parser.add_argument("--username", required=True, help="Username")
+    login_parser.add_argument("--password", required=True, help="Password")
+    login_parser.add_argument("--server", default="http://127.0.0.1:8000", help="Server base URL")
+    login_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+
+    # Logout command
+    logout_parser = subparsers.add_parser("logout", help="Log out and remove stored credentials")
+    logout_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+
     return parser
 
 
@@ -177,6 +238,12 @@ def handle_command(args, parser) -> int:
             return handle_serve(args, parser)
         elif args.command == "sync":
             return handle_sync(args, parser)
+        elif args.command == "register":
+            return handle_register(args, parser)
+        elif args.command == "login":
+            return handle_login(args, parser)
+        elif args.command == "logout":
+            return handle_logout(args, parser)
         else:
             parser.print_help()
             return 0
@@ -395,18 +462,23 @@ def handle_serve(args, parser) -> int:
 def handle_sync(args, parser) -> int:
     """Handle the sync command to synchronize with the FastAPI server."""
     
-
+ 
     storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
     client = ServerHttpClient(base_url=args.server)
 
     try:
-        summary = _sync(client, storage_path, args.direction)
+        summary = _sync(client, storage_path, args.direction, credentials_path=credentials_path)
         print(summary)
         if summary.errors:
             for error in summary.errors:
                 print(f"Error: {error}", file=sys.stderr)
             return 1
         return 0
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please log in with `snekdo login`.", file=sys.stderr)
+        return 1
     except ConnectionError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -415,7 +487,72 @@ def handle_sync(args, parser) -> int:
         return 1
 
 
-def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncSummary:
+def handle_register(args, parser) -> int:
+    """Handle the register command by creating a new account on the server."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url=args.server)
+
+    try:
+        response = client._request(
+            "POST",
+            "/api/v1/auth/register",
+            data={"username": args.username, "password": args.password},
+            credentials_path=credentials_path,
+        )
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    # Store credentials
+    token_type = response.get("token_type", "bearer")
+    _write_credentials(credentials_path, response["access_token"], token_type)
+    print(f"Registered user: {args.username}")
+    print(f"Token stored to: {credentials_path}")
+    return 0
+
+
+def handle_login(args, parser) -> int:
+    """Handle the login command by authenticating and storing the access token."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url=args.server)
+
+    try:
+        response = client._request(
+            "POST",
+            "/api/v1/auth/login",
+            data={"username": args.username, "password": args.password},
+            credentials_path=credentials_path,
+        )
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    # Store credentials
+    token_type = response.get("token_type", "bearer")
+    _write_credentials(credentials_path, response["access_token"], token_type)
+    print(f"Logged in as: {args.username}")
+    print(f"Token stored to: {credentials_path}")
+    return 0
+
+
+def handle_logout(args, parser) -> int:
+    """Handle the logout command by removing stored credentials."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    _delete_credentials(credentials_path)
+    print(f"Logged out. Credentials removed from: {credentials_path}")
+    return 0
+
+
+def _sync(client: ServerHttpClient, storage_path: Path, direction: str, credentials_path: Optional[Path] = None) -> SyncSummary:
     """Synchronize local storage with the server.
 
     Args:
@@ -434,7 +571,7 @@ def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncS
     errors: list[str] = []
 
     try:
-        server_todos = client.get_todos()
+        server_todos = client.get_todos(credentials_path=credentials_path)
     except (ConnectionError, ServerError) as e:
         errors.append(f"Failed to fetch todos from server: {e}")
         summary.errors = errors
@@ -461,6 +598,7 @@ def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncS
                         description=local_todo.description,
                         due=local_todo.due or None,
                         priority=local_todo.priority,
+                        credentials_path=credentials_path,
                     )
                     summary.pushed += 1
                 except (ConnectionError, ServerError) as e:
@@ -474,6 +612,7 @@ def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncS
                         description=local_todo.description,
                         due=local_todo.due or None,
                         priority=local_todo.priority,
+                        credentials_path=credentials_path,
                     )
                     summary.updated += 1
                 except (ConnectionError, ServerError) as e:
@@ -484,7 +623,7 @@ def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncS
         for server_id in server_todo_map:
             if server_id not in local_todo_map:
                 try:
-                    client.delete_todo(server_id)
+                    client.delete_todo(server_id, credentials_path=credentials_path)
                     summary.deleted += 1
                 except (ConnectionError, ServerError) as e:
                     errors.append(f"Failed to delete todo {server_id}: {e}")

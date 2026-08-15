@@ -12,6 +12,8 @@ A simple CLI todo list manager for Python.
 - Custom storage path via `--storage` flag
 - REST API backend via FastAPI with `snekdo serve`
 - Web UI frontend with HTMX and Jinja2 templates, served alongside the API
+- User registration, login, and logout with JWT authentication
+- Sync local todos with a remote server via `snekdo sync`
 
 ## Installation
 
@@ -90,6 +92,28 @@ snekdo show <todo-id>
 
 This displays all details of the specified todo item, including ID, Title, Description, Due, Priority, Status, and Created At.
 
+### Authentication
+
+Register a new account:
+
+```bash
+snekdo register --username myuser --password mypassword
+```
+
+Log in and store a JWT token:
+
+```bash
+snekdo login --username myuser --password mypassword
+```
+
+Log out and remove the stored token:
+
+```bash
+snekdo logout
+```
+
+Tokens are stored in `~/.snekdo/credentials.json` and expire after 60 minutes.
+
 ### Serve the REST API
 
 Start the FastAPI server:
@@ -108,7 +132,7 @@ The API exposes the following endpoints:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/health` | Health check |
+| GET | `/api/v1/health` | Health check (no auth required) |
 | GET | `/api/v1/todos` | List all todos |
 | GET | `/api/v1/todos/{id}` | Show a single todo |
 | POST | `/api/v1/todos` | Add a new todo |
@@ -116,7 +140,27 @@ The API exposes the following endpoints:
 | PUT | `/api/v1/todos/{id}` | Modify a todo |
 | DELETE | `/api/v1/todos/{id}` | Delete a todo |
 
+All todo CRUD endpoints require authentication via the `Authorization: Bearer <token>` header.
+The health check and `/api/v1/auth/*` endpoints are public.
+
 OpenAPI documentation is available at `/openapi.json` and a Swagger UI at `/docs`.
+
+### Sync
+
+Synchronize local todos with a remote server:
+
+```bash
+# Pull todos from server (server is source of truth)
+snekdo sync --server http://127.0.0.1:8000 --direction pull
+
+# Push local todos to server
+snekdo sync --server http://127.0.0.1:8000 --direction push
+
+# Both: push local and pull server
+snekdo sync --server http://127.0.0.1:8000 --direction both
+```
+
+Authentication is required for sync. The CLI sends the stored JWT token via the `Authorization: Bearer <token>` header. If the server returns 401/403, the sync fails with an authentication error.
 
 ### Web UI
 
