@@ -32,9 +32,9 @@ snekdo — a Python CLI todo list manager (single package `snekdo/`, tests in `t
 - `pull`: server is source of truth. `push`: local wins for existing, creates missing, deletes absent-on-local (only push/both).
 
 ## Running
-- Install: `pip install -e .` (CLI) or `pip install -e ".[api]"` (server). Tests: `pip install -e ".[test]"`.
-- Run tests: `pytest` (testpaths = tests, pythonpath = .).
-- Run CLI: `python -m snekdo --help` or `snekdo --help`.
+- Install: `uv pip install -e .` (CLI) or `uv pip install -e ".[api]"` (server). Tests: `uv pip install -e ".[test]"`.
+- Run tests: `uv run pytest` (testpaths = tests, pythonpath = .).
+- Run CLI: `uv run snekdo --help` or `snekdo --help`.
 - Run server: `snekdo serve` (default 127.0.0.1:8000).
 
 ## OpenSpec
