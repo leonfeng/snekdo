@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div>
+    <div class="detail-group">
+        <p class="detail-label">ID</p>
+        <p class="detail-value">{{ todo.id }}</p>
+    </div>
+    <div class="detail-group">
+        <p class="detail-label">Title</p>
+        <p class="detail-value">{{ todo.title }}</p>
+    </div>
+    <div class="detail-group">
+        <p class="detail-label">Description</p>
+        <p class="detail-value">{{ todo.description }}</p>
+    </div>
+    <div class="detail-group">
+        <p class="detail-label">Due</p>
+        <p class="detail-value">{{ todo.due if todo.due else "N/A" }}</p>
+    </div>
+    <div class="detail-group">
+        <p class="detail-label">Priority</p>
+        <p class="detail-value">{{ todo.priority }}</p>
+    </div>
+    <div class="detail-group">
+        <p class="detail-label">Status</p>
+        <p class="detail-value">{{ "✓" if todo.completed else "pending" }}</p>
+    </div>
+    <div class="detail-group">
+        <p class="detail-label">Created At</p>
+        <p class="detail-value">{{ todo.created_at }}</p>
+    </div>
+</div>
+<a href="/todos" class="btn">Back to List</a>
+<a href="/todos/{{ todo.id }}/edit" class="btn">Edit</a>
+{% endblock %}

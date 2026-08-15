@@ -122,14 +122,18 @@ The system SHALL use the storage path provided via the `--storage` flag when the
 
 ### Requirement: Server starts and listens
 
-The system SHALL start a FastAPI server with uvicorn when `snekdo serve` is run.
+The system SHALL start a FastAPI server with uvicorn when `snekdo serve` is
+run, serving both the REST API at `/api/v1/*` and the HTMX/Jinja2 web
+frontend at `/` and `/todos/*`.
 
-#### Scenario: Server starts on default port
+#### Scenario: Server starts on default port with web UI
 
 - **WHEN** the user runs `snekdo serve`
-- **THEN** the server starts and listens on `127.0.0.1:8000` by default
+- **THEN** the server starts and listens on `127.0.0.1:8000` by default,
+  serving the web UI at `/` and the API at `/api/v1/*`
 
-#### Scenario: Server starts on custom port
+#### Scenario: Server starts on custom port with web UI
 
 - **WHEN** the user runs `snekdo serve --host 0.0.0.0 --port 9000`
-- **THEN** the server starts and listens on `0.0.0.0:9000`
+- **THEN** the server starts and listens on `0.0.0.0:9000`, serving the web
+  UI at `/` and the API at `/api/v1/*`

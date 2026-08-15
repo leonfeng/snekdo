@@ -11,6 +11,7 @@ A simple CLI todo list manager for Python.
 - Sorting by created date, title, priority, or completion status, with reverse order support
 - Custom storage path via `--storage` flag
 - REST API backend via FastAPI with `snekdo serve`
+- Web UI frontend with HTMX and Jinja2 templates, served alongside the API
 
 ## Installation
 
@@ -18,11 +19,14 @@ A simple CLI todo list manager for Python.
 pip install -e .
 ```
 
-To use the REST API backend, install with the `api` extra:
+To use the REST API backend and web UI, install with the `api` extra:
 
 ```bash
 pip install -e ".[api]"
 ```
+
+The `jinja2` package is included in the main dependencies and is required for
+the web frontend.
 
 ## Usage
 
@@ -113,6 +117,16 @@ The API exposes the following endpoints:
 | DELETE | `/api/v1/todos/{id}` | Delete a todo |
 
 OpenAPI documentation is available at `/openapi.json` and a Swagger UI at `/docs`.
+
+### Web UI
+
+`snekdo serve` also serves a web-based todo management interface at `/`. The
+frontend uses [Jinja2](https://jinja.palletsprojects.com/) for server-side
+HTML templating and [HTMX](https://htmx.org/) for interactive, partial-page
+updates (e.g. completing or deleting a todo without a full page reload).
+
+You can access the web UI in a browser at `http://127.0.0.1:8000/` after running
+`snekdo serve`. The API remains available at `/api/v1/*`.
 
 ## Storage
 

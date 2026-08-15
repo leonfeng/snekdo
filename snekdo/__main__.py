@@ -9,6 +9,7 @@ from pathlib import Path
 
 from snekdo.api import create_app
 from snekdo.api_client import ConnectionError, ServerHttpClient, ServerError, SyncSummary
+from snekdo.web import register_web_routes
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage
 
@@ -382,9 +383,11 @@ def handle_serve(args, parser) -> int:
 
     storage_path = _get_storage_path(args)
     app = create_app(storage_path=str(storage_path))
-    print(f"Starting snekdo API server on {args.host}:{args.port}")
+    register_web_routes(app, storage_path=str(storage_path))
+    print(f"Starting snekdo server on {args.host}:{args.port}")
     print(f"Storage: {storage_path}")
     print(f"OpenAPI docs: http://{args.host}:{args.port}/docs")
+    print(f"Web UI: http://{args.host}:{args.port}/")
     uvicorn.run(app, host=args.host, port=args.port)
     return 0
 
