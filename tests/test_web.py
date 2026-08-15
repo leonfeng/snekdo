@@ -246,3 +246,253 @@ class TestDeleteAction:
     def test_delete_nonexistent_todo(self, client):
         response = client.post("/todos/nonexistent-id/delete")
         assert response.status_code == 404
+
+
+class TestProfilePage:
+    """Tests for the user profile page."""
+
+    def test_profile_page_renders(self, client):
+        """Test that the profile page renders with user info."""
+        response = client.get("/profile")
+        assert response.status_code == 200
+        assert "Profile" in response.text
+        assert "testuser" in response.text
+
+    def test_profile_page_shows_user_info(self, client):
+        """Test that the profile page displays user information."""
+        response = client.get("/profile")
+        assert response.status_code == 200
+        assert "Username" in response.text
+        assert "Display Name" in response.text
+        assert "Email" in response.text
+        assert "Created At" in response.text
+
+    def test_profile_page_has_update_form(self, client):
+        """Test that the profile page has an update form."""
+        response = client.get("/profile")
+        assert response.status_code == 200
+        assert 'name="display_name"' in response.text
+        assert 'name="email"' in response.text
+        assert "Update Profile" in response.text
+
+    def test_profile_page_has_password_form(self, client):
+        """Test that the profile page has a password change form."""
+        response = client.get("/profile")
+        assert response.status_code == 200
+        assert 'name="current_password"' in response.text
+        assert 'name="new_password"' in response.text
+        assert 'name="confirm_password"' in response.text
+        assert "Change Password" in response.text
+
+    def test_profile_page_redirects_unauthenticated(self):
+        """Test that unauthenticated users are redirected to login."""
+        from fastapi.testclient import TestClient
+
+        from snekdo.api import create_app
+        from snekdo.web import get_template_env, register_web_routes
+
+        storage_file = "/tmp/test_profile_unauth.json"
+        import os
+        if os.path.exists(storage_file):
+            os.remove(storage_file)
+        app = create_app(storage_path=storage_file)
+        app.state.template_env = get_template_env()
+        register_web_routes(app, storage_path=storage_file)
+        test_client = TestClient(app)
+        response = test_client.get("/profile", follow_redirects=False)
+        assert response.status_code == 302
+        assert "login" in response.headers["location"].lower()
+
+
+class TestProfileUpdate:
+    """Tests for the profile update functionality."""
+
+    def test_update_display_name(self, client):
+        """Test updating the display name."""
+        from snekdo.storage import UserStorage
+
+        user_storage = UserStorage(
+            storage_path=str(
+                client.app.state.storage_path.replace("todos.json", "users.json")
+            )
+        )
+        response = client.post(
+            "/profile/update",
+            data={"display_name": "New Name", "email": ""},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert response.headers["location"] == "/profile"
+
+        user = user_storage.get("testuser")
+        assert user.display_name == "New Name"
+
+    def test_update_email(self, client):
+        """Test updating the email."""
+        from snekdo.storage import UserStorage
+
+        user_storage = UserStorage(
+            storage_path=str(
+                client.app.state.storage_path.replace("todos.json", "users.json")
+            )
+        )
+        response = client.post(
+            "/profile/update",
+            data={"display_name": "", "email": "new@example.com"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert response.headers["location"] == "/profile"
+
+        user = user_storage.get("testuser")
+        assert user.email == "new@example.com"
+
+    def test_update_both_fields(self, client):
+        """Test updating both display name and email."""
+        from snekdo.storage import UserStorage
+
+        user_storage = UserStorage(
+            storage_path=str(
+                client.app.state.storage_path.replace("todos.json", "users.json")
+            )
+        )
+        response = client.post(
+            "/profile/update",
+            data={"display_name": "New Name", "email": "new@example.com"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert response.headers["location"] == "/profile"
+
+        user = user_storage.get("testuser")
+        assert user.display_name == "New Name"
+        assert user.email == "new@example.com"
+
+    def test_update_invalid_email(self, client):
+        """Test that invalid email format shows an error."""
+        response = client.post(
+            "/profile/update",
+            data={"display_name": "", "email": "not-an-email"},
+        )
+        assert response.status_code == 200
+        assert "Invalid email format" in response.text
+
+    def test_update_htmx_partial(self, client):
+        """Test that HTMX requests return partial content."""
+        response = client.post(
+            "/profile/update",
+            data={"display_name": "HTMX Name", "email": ""},
+            headers={"HX-Request": "true"},
+        )
+        assert response.status_code == 200
+        assert "HTMX Name" in response.text
+
+    def test_update_empty_email_clears(self, client):
+        """Test that empty string clears the email field."""
+        from snekdo.storage import UserStorage
+
+        # First set an email
+        user_storage = UserStorage(
+            storage_path=str(
+                client.app.state.storage_path.replace("todos.json", "users.json")
+            )
+        )
+        user_storage.update_profile(
+            client.app.state.user_id, email="old@example.com"
+        )
+
+        response = client.post(
+            "/profile/update",
+            data={"display_name": "", "email": ""},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+
+        user = user_storage.get("testuser")
+        assert user.email == ""
+
+
+class TestPasswordChange:
+    """Tests for the password change functionality."""
+
+    def test_change_password_success(self, client):
+        """Test that password change succeeds with valid data."""
+        from snekdo.auth import verify_password
+        from snekdo.storage import UserStorage
+
+        user_storage = UserStorage(
+            storage_path=str(
+                client.app.state.storage_path.replace("todos.json", "users.json")
+            )
+        )
+        user = user_storage.get("testuser")
+        original_hash = user.password_hash
+
+        response = client.post(
+            "/profile/password",
+            data={
+                "current_password": "password123",
+                "new_password": "newpass123",
+                "confirm_password": "newpass123",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert response.headers["location"] == "/profile"
+
+        user = user_storage.get("testuser")
+        assert user.password_hash != original_hash
+        assert verify_password("newpass123", user.password_hash)
+
+    def test_change_password_wrong_current(self, client):
+        """Test that wrong current password shows an error."""
+        response = client.post(
+            "/profile/password",
+            data={
+                "current_password": "wrongpass",
+                "new_password": "newpass123",
+                "confirm_password": "newpass123",
+            },
+        )
+        assert response.status_code == 200
+        assert "Current password is incorrect" in response.text
+
+    def test_change_password_short_new(self, client):
+        """Test that short new password shows an error."""
+        response = client.post(
+            "/profile/password",
+            data={
+                "current_password": "password123",
+                "new_password": "short",
+                "confirm_password": "short",
+            },
+        )
+        assert response.status_code == 200
+        assert "at least 8 characters" in response.text
+
+    def test_change_password_mismatch(self, client):
+        """Test that mismatched passwords show an error."""
+        response = client.post(
+            "/profile/password",
+            data={
+                "current_password": "password123",
+                "new_password": "newpass123",
+                "confirm_password": "different",
+            },
+        )
+        assert response.status_code == 200
+        assert "Passwords do not match" in response.text
+
+    def test_change_password_htmx(self, client):
+        """Test that HTMX password change returns partial content."""
+        response = client.post(
+            "/profile/password",
+            data={
+                "current_password": "password123",
+                "new_password": "newpass123",
+                "confirm_password": "newpass123",
+            },
+            headers={"HX-Request": "true"},
+        )
+        assert response.status_code == 200
+

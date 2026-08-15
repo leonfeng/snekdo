@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 
-from snekdo.auth import decode_access_token
+from snekdo.auth import decode_access_token, verify_password
 from snekdo.models import Todo
-from snekdo.storage import TodoStorage, UserStorage
+from snekdo.storage import StorageError, TodoStorage, UserStorage
 from snekdo.web_auth import register_web_routes as register_auth_web_routes
+
+EMAIL_REGEX = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
 
 def get_user_storage(storage_path: str | None = None) -> UserStorage:
@@ -66,24 +69,30 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
 
     def _require_login(
         request: Request,
-        token: str | None = Cookie(default=None),
     ) -> str:
         """Require a logged-in user and return their user_id.
 
         The token is read from the token cookie. If no token is present,
         the user is redirected to the login page.
         """
+        token = request.cookies.get("token")
         if token is None:
-            return RedirectResponse(url="/auth/login", status_code=302)
+            raise HTTPException(
+                status_code=302, headers={"location": "/auth/login"}
+            )
 
         user_id = decode_access_token(token)
         if user_id is None:
-            return RedirectResponse(url="/auth/login", status_code=302)
+            raise HTTPException(
+                status_code=302, headers={"location": "/auth/login"}
+            )
 
         user_storage = get_user_storage(storage_path)
         user = user_storage.get_by_id(user_id)
         if user is None:
-            return RedirectResponse(url="/auth/login", status_code=302)
+            raise HTTPException(
+                status_code=302, headers={"location": "/auth/login"}
+            )
 
         return user_id
 
@@ -295,6 +304,110 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
     # ------------------------------------------------------------------
 
     register_auth_web_routes(router=app, storage_path=storage_path)
+
+    # ------------------------------------------------------------------
+    # Profile routes
+    # ------------------------------------------------------------------
+
+    @app.get("/profile")
+    async def profile_page(
+        request: Request,
+        user_id: str = Depends(_require_login),
+    ) -> Response:
+        """Render the user profile page."""
+        user_storage = get_user_storage(storage_path)
+        user = user_storage.get_profile(user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        return _render(request, "profile.html", title="Profile", user=user)
+
+    @app.post("/profile/update")
+    async def update_profile(
+        request: Request,
+        display_name: str = Form(default=""),
+        email: str = Form(default=""),
+        user_id: str = Depends(_require_login),
+    ) -> Response:
+        """Update the authenticated user's profile."""
+        user_storage = get_user_storage(storage_path)
+        user = user_storage.get_by_id(user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        errors = []
+        if email and not EMAIL_REGEX.match(email):
+            errors.append("Invalid email format")
+
+        if errors:
+            user = user_storage.get_profile(user_id)
+            return _render(
+                request,
+                "profile_content.html",
+                title="Profile",
+                user=user,
+                error="; ".join(errors),
+            )
+
+        user_storage.update_profile(
+            user_id,
+            display_name=display_name,
+            email=email,
+        )
+        user = user_storage.get_profile(user_id)
+
+        if request.headers.get("HX-Request"):
+            return _render(request, "profile_content.html", title="Profile", user=user)
+        return RedirectResponse(url="/profile", status_code=302)
+
+    @app.post("/profile/password")
+    async def change_password(
+        request: Request,
+        current_password: str = Form(default=""),
+        new_password: str = Form(default=""),
+        confirm_password: str = Form(default=""),
+        user_id: str = Depends(_require_login),
+    ) -> Response:
+        """Change the authenticated user's password."""
+        user_storage = get_user_storage(storage_path)
+        user = user_storage.get_by_id(user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        errors = []
+        if not verify_password(current_password, user.password_hash):
+            errors.append("Current password is incorrect")
+        if len(new_password) < 8:
+            errors.append("Password must be at least 8 characters")
+        if new_password != confirm_password:
+            errors.append("Passwords do not match")
+
+        if errors:
+            user = user_storage.get_profile(user_id)
+            return _render(
+                request,
+                "profile_content.html",
+                title="Profile",
+                user=user,
+                error="; ".join(errors),
+            )
+
+        try:
+            user_storage.update_password(user_id, current_password, new_password)
+        except StorageError as e:
+            errors.append(str(e))
+            user = user_storage.get_profile(user_id)
+            return _render(
+                request,
+                "profile_content.html",
+                title="Profile",
+                user=user,
+                error="; ".join(errors),
+            )
+
+        if request.headers.get("HX-Request"):
+            user = user_storage.get_profile(user_id)
+            return _render(request, "profile_content.html", title="Profile", user=user)
+        return RedirectResponse(url="/profile", status_code=302)
 
 
 def create_web_app(storage_path: str | None = None) -> FastAPI:
