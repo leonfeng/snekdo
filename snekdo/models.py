@@ -36,6 +36,8 @@ class User:
 
     id: str = ""
     username: str = ""
+    display_name: str = ""
+    email: str = ""
     password_hash: str = ""
     created_at: str = ""  # ISO 8601
 
@@ -49,6 +51,8 @@ class User:
         return {
             "id": self.id,
             "username": self.username,
+            "display_name": self.display_name,
+            "email": self.email,
             "password_hash": self.password_hash,
             "created_at": self.created_at,
         }
@@ -59,6 +63,8 @@ class User:
         return cls(
             id=data.get("id", ""),
             username=data.get("username", ""),
+            display_name=data.get("display_name", ""),
+            email=data.get("email", ""),
             password_hash=data.get("password_hash", ""),
             created_at=data.get("created_at", ""),
         )

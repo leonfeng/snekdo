@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, List, Optional
 
+from snekdo.auth import verify_password
 from snekdo.models import Todo, User
 
 logger = logging.getLogger(__name__)
@@ -311,3 +312,83 @@ class UserStorage:
             return False
         self.save(users)
         return True
+
+    def update_profile(
+        self,
+        user_id: str,
+        display_name: Optional[str] = None,
+        email: Optional[str] = None,
+    ) -> bool:
+        """Update the display name and/or email of a user.
+
+        Args:
+            user_id: The ID of the user to update.
+            display_name: New display name, or None to leave unchanged.
+            email: New email, or None to leave unchanged.
+
+        Returns:
+            True if the user was found and updated, False otherwise.
+        """
+        users = self.load()
+        for user in users:
+            if user.id == user_id:
+                if display_name is not None:
+                    user.display_name = display_name
+                if email is not None:
+                    user.email = email
+                self.save(users)
+                return True
+        return False
+
+    def update_password(
+        self,
+        user_id: str,
+        current_password: str,
+        new_password: str,
+    ) -> bool:
+        """Update the password of a user.
+
+        Args:
+            user_id: The ID of the user to update.
+            current_password: The current password for verification.
+            new_password: The new password to set.
+
+        Returns:
+            True if the user was found and the password was updated, False otherwise.
+
+        Raises:
+            StorageError: If the current password is incorrect.
+        """
+        from snekdo.auth import hash_password
+
+        users = self.load()
+        for user in users:
+            if user.id == user_id:
+                if not verify_password(current_password, user.password_hash):
+                    raise StorageError("Current password is incorrect")
+                user.password_hash = hash_password(new_password)
+                self.save(users)
+                return True
+        return False
+
+    def get_profile(self, user_id: str) -> Optional[User]:
+        """Find a user by ID, returning the user without the password hash.
+
+        Args:
+            user_id: The user ID to find.
+
+        Returns:
+            The User if found, None otherwise.
+        """
+        user = self.get_by_id(user_id)
+        if user is not None:
+            # Return a copy without the password hash for profile displays
+            return User(
+                id=user.id,
+                username=user.username,
+                display_name=user.display_name,
+                email=user.email,
+                password_hash="",
+                created_at=user.created_at,
+            )
+        return None

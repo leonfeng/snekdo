@@ -50,6 +50,8 @@ class UserResponse(BaseModel):
 
     id: str
     username: str
+    display_name: str
+    email: str
     created_at: str
 
     @classmethod
@@ -57,6 +59,8 @@ class UserResponse(BaseModel):
         return cls(
             id=user.id,
             username=user.username,
+            display_name=user.display_name,
+            email=user.email,
             created_at=user.created_at,
         )
 

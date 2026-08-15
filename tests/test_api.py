@@ -295,3 +295,216 @@ def test_custom_storage_path(tmp_path: Path):
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+# ---------------------------------------------------------------------------
+# User profile endpoints
+# ---------------------------------------------------------------------------
+
+def test_get_profile(tmp_path: Path):
+    """Test getting the current user's profile."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client, username="testuser")
+    response = client.get("/api/v1/users/me", headers=_auth_header(token))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["username"] == "testuser"
+    assert "id" in data
+    assert "created_at" in data
+    assert data["display_name"] == ""
+    assert data["email"] == ""
+
+
+def test_get_profile_unauthenticated(tmp_path: Path):
+    """Test that getting profile requires authentication."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    response = client.get("/api/v1/users/me")
+
+    assert response.status_code == 401
+
+
+def test_update_profile(tmp_path: Path):
+    """Test updating the current user's profile."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+    response = client.put(
+        "/api/v1/users/me",
+        json={"display_name": "Test User", "email": "test@example.com"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["display_name"] == "Test User"
+    assert data["email"] == "test@example.com"
+
+
+def test_update_profile_partial(tmp_path: Path):
+    """Test updating only the display name."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+    client.put(
+        "/api/v1/users/me",
+        json={"display_name": "Test User"},
+        headers=_auth_header(token),
+    )
+
+    response = client.get("/api/v1/users/me", headers=_auth_header(token))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["display_name"] == "Test User"
+    assert data["email"] == ""
+
+
+def test_update_profile_unauthenticated(tmp_path: Path):
+    """Test that updating profile requires authentication."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    response = client.put(
+        "/api/v1/users/me",
+        json={"display_name": "Test User"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_change_password(tmp_path: Path):
+    """Test changing the user's password."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+    response = client.put(
+        "/api/v1/users/me/password",
+        json={
+            "current_password": "password123",
+            "new_password": "newpassword123",
+            "confirm_password": "newpassword123",
+        },
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+
+
+def test_change_password_unauthenticated(tmp_path: Path):
+    """Test that changing password requires authentication."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    response = client.put(
+        "/api/v1/users/me/password",
+        json={
+            "current_password": "password123",
+            "new_password": "newpassword123",
+            "confirm_password": "newpassword123",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_change_password_wrong_current(tmp_path: Path):
+    """Test that changing password with wrong current password returns 401."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+    response = client.put(
+        "/api/v1/users/me/password",
+        json={
+            "current_password": "wrongpassword",
+            "new_password": "newpassword123",
+            "confirm_password": "newpassword123",
+        },
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 401
+
+
+def test_change_password_mismatch(tmp_path: Path):
+    """Test that changing password with mismatched new password returns 422."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+    response = client.put(
+        "/api/v1/users/me/password",
+        json={
+            "current_password": "password123",
+            "new_password": "newpassword123",
+            "confirm_password": "differentpassword",
+        },
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_profile_isolation(tmp_path: Path):
+    """Test that a user can only modify their own profile."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    # Register two users
+    client.post(
+        "/api/v1/auth/register",
+        json={"username": "user1", "password": "password123"},
+    )
+    client.post(
+        "/api/v1/auth/register",
+        json={"username": "user2", "password": "password123"},
+    )
+
+    # Login as user1 and update profile
+    response1 = client.post(
+        "/api/v1/auth/login",
+        json={"username": "user1", "password": "password123"},
+    )
+    token1 = response1.json()["access_token"]
+
+    client.put(
+        "/api/v1/users/me",
+        json={"display_name": "User One", "email": "user1@example.com"},
+        headers=_auth_header(token1),
+    )
+
+    # Verify user1's profile is updated
+    response = client.get("/api/v1/users/me", headers=_auth_header(token1))
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "User One"
+
+    # Login as user2 and try to update user1's profile (using user2's token)
+    response2 = client.post(
+        "/api/v1/auth/login",
+        json={"username": "user2", "password": "password123"},
+    )
+    token2 = response2.json()["access_token"]
+
+    # User2 tries to update their own profile (not user1's - /me always refers to own)
+    response = client.put(
+        "/api/v1/users/me",
+        json={"display_name": "User Two"},
+        headers=_auth_header(token2),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["display_name"] == "User Two"
+
+    # Verify user1's profile was not affected
+    response = client.get("/api/v1/users/me", headers=_auth_header(token1))
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "User One"

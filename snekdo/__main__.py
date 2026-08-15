@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from snekdo.api import create_app
-from snekdo.api_client import ConnectionError, ServerHttpClient, ServerError, SyncSummary
+from snekdo.api_client import AuthenticationError, ConnectionError, ServerHttpClient, ServerError, SyncSummary
 from snekdo.web import register_web_routes
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage
@@ -188,6 +188,23 @@ def create_parser() -> argparse.ArgumentParser:
     logout_parser = subparsers.add_parser("logout", help="Log out and remove stored credentials")
     logout_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
 
+    # Profile command
+    profile_parser = subparsers.add_parser("profile", help="View your profile")
+    profile_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+
+    # Profile update command
+    profile_update_parser = subparsers.add_parser("profile-update", help="Update your profile")
+    profile_update_parser.add_argument("--display-name", default=None, help="New display name")
+    profile_update_parser.add_argument("--email", default=None, help="New email")
+    profile_update_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+
+    # Change password command
+    change_password_parser = subparsers.add_parser("change-password", help="Change your password")
+    change_password_parser.add_argument("--current-password", required=True, help="Current password")
+    change_password_parser.add_argument("--new-password", required=True, help="New password")
+    change_password_parser.add_argument("--confirm-password", required=True, help="Confirm new password")
+    change_password_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+
     return parser
 
 
@@ -244,6 +261,12 @@ def handle_command(args, parser) -> int:
             return handle_login(args, parser)
         elif args.command == "logout":
             return handle_logout(args, parser)
+        elif args.command == "profile":
+            return handle_profile(args, parser)
+        elif args.command == "profile-update":
+            return handle_profile_update(args, parser)
+        elif args.command == "change-password":
+            return handle_change_password(args, parser)
         else:
             parser.print_help()
             return 0
@@ -549,6 +572,90 @@ def handle_logout(args, parser) -> int:
     credentials_path = _get_credentials_path(storage_path)
     _delete_credentials(credentials_path)
     print(f"Logged out. Credentials removed from: {credentials_path}")
+    return 0
+
+
+def handle_profile(args, parser) -> int:
+    """Handle the profile command by fetching the current user's profile."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+
+    try:
+        profile = client.get_profile(credentials_path=credentials_path)
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please log in with `snekdo login`.", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"ID: {profile.get('id', '')}")
+    print(f"Username: {profile.get('username', '')}")
+    print(f"Display Name: {profile.get('display_name', '')}")
+    print(f"Email: {profile.get('email', '')}")
+    print(f"Created At: {profile.get('created_at', '')}")
+    return 0
+
+
+def handle_profile_update(args, parser) -> int:
+    """Handle the profile-update command by updating the current user's profile."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+
+    try:
+        response = client.update_profile(
+            display_name=args.display_name,
+            email=args.email,
+            credentials_path=credentials_path,
+        )
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please log in with `snekdo login`.", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"Display Name: {response.get('display_name', '')}")
+    print(f"Email: {response.get('email', '')}")
+    print("Profile updated successfully.")
+    return 0
+
+
+def handle_change_password(args, parser) -> int:
+    """Handle the change-password command by changing the current user's password."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+
+    try:
+        response = client.change_password(
+            current_password=args.current_password,
+            new_password=args.new_password,
+            confirm_password=args.confirm_password,
+            credentials_path=credentials_path,
+        )
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please log in with `snekdo login`.", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"Message: {response.get('message', 'Password changed successfully.')}")
     return 0
 
 

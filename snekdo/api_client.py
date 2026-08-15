@@ -234,6 +234,54 @@ class ServerHttpClient:
             "POST", f"/api/v1/todos/{todo_id}/complete", credentials_path=credentials_path
         )
 
+    def get_profile(self, credentials_path: Optional[Path] = None) -> dict:
+        """Get the current user's profile.
+
+        Args:
+            credentials_path: Optional path to the credentials file.
+
+        Returns:
+            The user profile dict.
+        """
+        return self._request("GET", "/api/v1/users/me", credentials_path=credentials_path)
+
+    def update_profile(self, display_name: Optional[str] = None, email: Optional[str] = None, credentials_path: Optional[Path] = None) -> dict:
+        """Update the current user's profile.
+
+        Args:
+            display_name: New display name.
+            email: New email.
+            credentials_path: Optional path to the credentials file.
+
+        Returns:
+            The updated user profile dict.
+        """
+        data: dict = {}
+        if display_name is not None:
+            data["display_name"] = display_name
+        if email is not None:
+            data["email"] = email
+        return self._request("PUT", "/api/v1/users/me", data=data, credentials_path=credentials_path)
+
+    def change_password(self, current_password: str, new_password: str, confirm_password: str, credentials_path: Optional[Path] = None) -> dict:
+        """Change the current user's password.
+
+        Args:
+            current_password: The current password.
+            new_password: The new password.
+            confirm_password: The new password confirmation.
+            credentials_path: Optional path to the credentials file.
+
+        Returns:
+            The message response dict.
+        """
+        data = {
+            "current_password": current_password,
+            "new_password": new_password,
+            "confirm_password": confirm_password,
+        }
+        return self._request("PUT", "/api/v1/users/me/password", data=data, credentials_path=credentials_path)
+
 
 class ServerError(Exception):
     """Raised when the server returns an error response."""

@@ -10,7 +10,19 @@ import json
 
 from nanoid import generate
 from snekdo.models import Todo
-from snekdo.__main__ import main, handle_command, handle_add, handle_list, handle_complete, handle_delete, handle_modify, handle_show
+from snekdo.__main__ import (
+    main,
+    handle_command,
+    handle_add,
+    handle_list,
+    handle_complete,
+    handle_delete,
+    handle_modify,
+    handle_show,
+    handle_profile,
+    handle_profile_update,
+    handle_change_password,
+)
 
 
 def _parse_list_line(line):
@@ -1205,6 +1217,138 @@ class TestCLI:
             assert result == 0
             output_str = output.getvalue()
             assert "Created At" in output_str
+
+
+# ---------------------------------------------------------------------------
+# User profile CLI commands
+# ---------------------------------------------------------------------------
+
+class TestProfileCLI:
+    """Test cases for the user profile CLI commands."""
+
+    def test_profile_command(self, tmp_path):
+        """Test the profile command displays user info."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        credentials_file = tmp_path / "credentials.json"
+        credentials_file.write_text(json.dumps({
+            "access_token": "test-token",
+            "token_type": "bearer",
+        }))
+
+        args = mock.MagicMock()
+        args.command = "profile"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.ServerHttpClient') as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.get_profile.return_value = {
+                "id": "1",
+                "username": "testuser",
+                "display_name": "Test User",
+                "email": "test@example.com",
+                "created_at": "2024-01-01T00:00:00",
+            }
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_profile(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "Test User" in output_str
+            assert "test@example.com" in output_str
+
+    def test_profile_update_command(self, tmp_path):
+        """Test the profile-update command."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        credentials_file = tmp_path / "credentials.json"
+        credentials_file.write_text(json.dumps({
+            "access_token": "test-token",
+            "token_type": "bearer",
+        }))
+
+        args = mock.MagicMock()
+        args.command = "profile-update"
+        args.display_name = "New Name"
+        args.email = "new@example.com"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.ServerHttpClient') as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.update_profile.return_value = {
+                "id": "1",
+                "username": "testuser",
+                "display_name": "New Name",
+                "email": "new@example.com",
+                "created_at": "2024-01-01T00:00:00",
+            }
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_profile_update(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "New Name" in output_str
+            assert "new@example.com" in output_str
+
+    def test_change_password_command(self, tmp_path):
+        """Test the change-password command."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        credentials_file = tmp_path / "credentials.json"
+        credentials_file.write_text(json.dumps({
+            "access_token": "test-token",
+            "token_type": "bearer",
+        }))
+
+        args = mock.MagicMock()
+        args.command = "change-password"
+        args.current_password = "oldpass"
+        args.new_password = "newpass123"
+        args.confirm_password = "newpass123"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.ServerHttpClient') as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.change_password.return_value = {
+                "message": "Password updated successfully",
+            }
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_change_password(args, None)
+
+            assert result == 0
+            output_str = output.getvalue()
+            assert "Password updated successfully" in output_str
+
+    def test_profile_unauthenticated(self, tmp_path):
+        """Test that profile command fails without credentials."""
+        from snekdo.api_client import AuthenticationError
+
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = mock.MagicMock()
+        args.command = "profile"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.ServerHttpClient') as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.get_profile.side_effect = AuthenticationError("Authentication error")
+
+            output = io.StringIO()
+            with patch('builtins.print', return_value=None) as mock_print:
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                result = handle_profile(args, None)
+
+            assert result == 1
 
     def test_list_shows_created_at_value(self, tmp_path):
         """Test that the list output displays the created_at value for each todo."""

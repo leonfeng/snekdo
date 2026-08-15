@@ -1,6 +1,6 @@
-"""Tests for the Todo model."""
+"""Tests for the Todo and User models."""
 
-from snekdo.models import Todo
+from snekdo.models import Todo, User
 
 
 def test_todo_to_dict():
@@ -106,3 +106,75 @@ def test_todo_from_dict_backward_compatible():
     }
     todo = Todo.from_dict(data)
     assert todo.priority == "medium"
+
+
+# ---------------------------------------------------------------------------
+# User model
+# ---------------------------------------------------------------------------
+
+def test_user_to_dict():
+    """Test that User.to_dict includes display_name and email."""
+    user = User(
+        id="1",
+        username="testuser",
+        display_name="Test User",
+        email="test@example.com",
+        password_hash="$2b$12$...",
+        created_at="2024-01-01T00:00:00",
+    )
+    data = user.to_dict()
+    assert data["id"] == "1"
+    assert data["username"] == "testuser"
+    assert data["display_name"] == "Test User"
+    assert data["email"] == "test@example.com"
+    assert data["created_at"] == "2024-01-01T00:00:00"
+
+
+def test_user_from_dict():
+    """Test that User.from_dict deserializes display_name and email."""
+    data = {
+        "id": "1",
+        "username": "testuser",
+        "display_name": "Test User",
+        "email": "test@example.com",
+        "password_hash": "$2b$12$...",
+        "created_at": "2024-01-01T00:00:00",
+    }
+    user = User.from_dict(data)
+    assert user.id == "1"
+    assert user.username == "testuser"
+    assert user.display_name == "Test User"
+    assert user.email == "test@example.com"
+    assert user.created_at == "2024-01-01T00:00:00"
+
+
+def test_user_from_dict_defaults():
+    """Test that User.from_dict uses defaults for display_name and email."""
+    data = {
+        "id": "1",
+        "username": "testuser",
+        "password_hash": "$2b$12$...",
+        "created_at": "2024-01-01T00:00:00",
+    }
+    user = User.from_dict(data)
+    assert user.display_name == ""
+    assert user.email == ""
+
+
+def test_user_from_dict_backward_compatible():
+    """Test that from_dict works with old format (no display_name/email fields)."""
+    data = {
+        "id": "1",
+        "username": "testuser",
+        "password_hash": "$2b$12$...",
+        "created_at": "2024-01-01T00:00:00",
+    }
+    user = User.from_dict(data)
+    assert user.display_name == ""
+    assert user.email == ""
+
+
+def test_user_default_id_generation():
+    """Test that a User gets a default ID if none is provided."""
+    user = User(username="testuser")
+    assert user.id != ""

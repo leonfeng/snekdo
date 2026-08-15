@@ -3,8 +3,10 @@
 import tempfile
 from pathlib import Path
 
-from snekdo.models import Todo
-from snekdo.storage import TodoStorage
+import pytest
+
+from snekdo.models import Todo, User
+from snekdo.storage import StorageError, TodoStorage, UserStorage
 
 
 def test_load_empty_file():
@@ -354,3 +356,174 @@ def test_load_corrupted_json():
         )
         todos = storage.load()
         assert todos == []
+
+
+# ---------------------------------------------------------------------------
+# UserStorage
+# ---------------------------------------------------------------------------
+
+def test_user_storage_add_and_get():
+    """Test adding and getting a user."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "users.json"
+        storage = UserStorage(storage_path=str(storage_path))
+        user = User(
+            id="1",
+            username="testuser",
+            display_name="Test User",
+            email="test@example.com",
+            password_hash="$2b$12$...",
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(user)
+        result = storage.get("testuser")
+        assert result is not None
+        assert result.username == "testuser"
+        assert result.display_name == "Test User"
+        assert result.email == "test@example.com"
+
+
+def test_user_storage_get_by_id():
+    """Test getting a user by ID."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "users.json"
+        storage = UserStorage(storage_path=str(storage_path))
+        user = User(
+            id="1",
+            username="testuser",
+            display_name="Test User",
+            email="test@example.com",
+            password_hash="$2b$12$...",
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(user)
+        result = storage.get_by_id("1")
+        assert result is not None
+        assert result.id == "1"
+
+
+def test_user_storage_update_profile():
+    """Test updating a user's profile."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "users.json"
+        storage = UserStorage(storage_path=str(storage_path))
+        user = User(
+            id="1",
+            username="testuser",
+            display_name="Original",
+            email="original@example.com",
+            password_hash="$2b$12$...",
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(user)
+        result = storage.update_profile("1", display_name="New Name", email="new@example.com")
+        assert result is True
+        updated = storage.get_by_id("1")
+        assert updated.display_name == "New Name"
+        assert updated.email == "new@example.com"
+
+
+def test_user_storage_update_profile_partial():
+    """Test updating only the display name."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "users.json"
+        storage = UserStorage(storage_path=str(storage_path))
+        user = User(
+            id="1",
+            username="testuser",
+            display_name="Original",
+            email="original@example.com",
+            password_hash="$2b$12$...",
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(user)
+        result = storage.update_profile("1", display_name="New Name")
+        assert result is True
+        updated = storage.get_by_id("1")
+        assert updated.display_name == "New Name"
+        assert updated.email == "original@example.com"
+
+
+def test_user_storage_update_profile_not_found():
+    """Test updating a non-existent user returns False."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "users.json"
+        storage = UserStorage(storage_path=str(storage_path))
+        result = storage.update_profile("nonexistent", display_name="New Name")
+        assert result is False
+
+
+def test_user_storage_update_password():
+    """Test updating a user's password."""
+    from snekdo.auth import hash_password, verify_password
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "users.json"
+        storage = UserStorage(storage_path=str(storage_path))
+        original_password = "old_password"
+        user = User(
+            id="1",
+            username="testuser",
+            display_name="Test User",
+            email="test@example.com",
+            password_hash=hash_password(original_password),
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(user)
+        result = storage.update_password("1", current_password=original_password, new_password="new_password")
+        assert result is True
+        updated = storage.get_by_id("1")
+        assert verify_password("new_password", updated.password_hash)
+        assert not verify_password(original_password, updated.password_hash)
+
+
+def test_user_storage_update_password_wrong_current():
+    """Test updating password with wrong current password raises StorageError."""
+    from snekdo.auth import hash_password
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "users.json"
+        storage = UserStorage(storage_path=str(storage_path))
+        user = User(
+            id="1",
+            username="testuser",
+            display_name="Test User",
+            email="test@example.com",
+            password_hash=hash_password("correct_password"),
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(user)
+        with pytest.raises(StorageError):
+            storage.update_password("1", current_password="wrong_password", new_password="new_password")
+
+
+def test_user_storage_get_profile():
+    """Test get_profile returns user without password hash."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "users.json"
+        storage = UserStorage(storage_path=str(storage_path))
+        user = User(
+            id="1",
+            username="testuser",
+            display_name="Test User",
+            email="test@example.com",
+            password_hash="$2b$12$...",
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(user)
+        profile = storage.get_profile("1")
+        assert profile is not None
+        assert profile.id == "1"
+        assert profile.username == "testuser"
+        assert profile.display_name == "Test User"
+        assert profile.email == "test@example.com"
+        assert profile.password_hash == ""
+
+
+def test_user_storage_get_profile_not_found():
+    """Test get_profile returns None for non-existent user."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "users.json"
+        storage = UserStorage(storage_path=str(storage_path))
+        result = storage.get_profile("nonexistent")
+        assert result is None

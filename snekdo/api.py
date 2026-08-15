@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -10,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from snekdo.api_auth import get_current_user, create_auth_router, get_current_user_factory
 from snekdo.models import Todo, User
-from snekdo.storage import StorageError, TodoStorage
+from snekdo.storage import StorageError, TodoStorage, UserStorage
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +83,41 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class UserUpdate(BaseModel):
+    """Schema for updating a user's profile. All fields are optional."""
+
+    display_name: Optional[str] = Field(default=None, max_length=100)
+    email: Optional[str] = None
+
+
+class PasswordChange(BaseModel):
+    """Schema for changing a user's password."""
+
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=128)
+    confirm_password: str = Field(..., min_length=8, max_length=128)
+
+
+class UserProfileResponse(BaseModel):
+    """Response model for a user's profile."""
+
+    id: str
+    username: str
+    display_name: str
+    email: str
+    created_at: str
+
+    @classmethod
+    def from_user(cls, user: User) -> "UserProfileResponse":
+        return cls(
+            id=user.id,
+            username=user.username,
+            display_name=user.display_name,
+            email=user.email,
+            created_at=user.created_at,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Dependency
 # ---------------------------------------------------------------------------
@@ -89,6 +125,16 @@ class MessageResponse(BaseModel):
 def get_storage(storage_path: Optional[str] = None) -> TodoStorage:
     """Dependency that provides a :class:`TodoStorage` instance."""
     return TodoStorage(storage_path=storage_path)
+
+
+def _derive_users_path(storage_path: Optional[str] = None) -> str:
+    """Derive the users JSON file path from the todos storage path."""
+    if storage_path is None:
+        return str(Path.home() / ".snekdo" / "users.json")
+    path = Path(storage_path)
+    if path.name == "todos.json":
+        return str(path.with_name("users.json"))
+    return str(path.parent / "users.json")
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +167,87 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
     async def health_check() -> HealthResponse:
         """Health check endpoint."""
         return HealthResponse(status="ok")
+
+    def _get_user_storage() -> UserStorage:
+        """Dependency that provides a :class:`UserStorage` instance."""
+        return UserStorage(storage_path=_derive_users_path(storage_path))
+
+    @app.get("/api/v1/users/me", response_model=UserProfileResponse)
+    async def get_user_profile(
+        user_storage: UserStorage = Depends(_get_user_storage),
+        current_user: User = Depends(get_current_user),
+    ) -> UserProfileResponse:
+        """Get the current authenticated user's profile."""
+        profile = user_storage.get_profile(current_user.id)
+        if profile is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User profile not found for ID '{current_user.id}'",
+            )
+        return UserProfileResponse.from_user(profile)
+
+    @app.put("/api/v1/users/me", response_model=UserProfileResponse)
+    async def update_user_profile(
+        update_data: UserUpdate,
+        user_storage: UserStorage = Depends(_get_user_storage),
+        current_user: User = Depends(get_current_user),
+    ) -> UserProfileResponse:
+        """Update the current authenticated user's profile."""
+        display_name = update_data.display_name if update_data.display_name is not None else None
+        email = update_data.email if update_data.email is not None else None
+
+        success = user_storage.update_profile(
+            current_user.id,
+            display_name=display_name,
+            email=email,
+        )
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User profile not found for ID '{current_user.id}'",
+            )
+
+        profile = user_storage.get_profile(current_user.id)
+        if profile is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to retrieve updated profile",
+            )
+        return UserProfileResponse.from_user(profile)
+
+    @app.put("/api/v1/users/me/password", response_model=MessageResponse)
+    async def change_user_password(
+        password_data: PasswordChange,
+        user_storage: UserStorage = Depends(_get_user_storage),
+        current_user: User = Depends(get_current_user),
+    ) -> MessageResponse:
+        """Change the current authenticated user's password."""
+        # Validate that new password and confirm password match
+        if password_data.new_password != password_data.confirm_password:
+            raise HTTPException(
+                status_code=422,
+                detail="New password and confirm password do not match",
+            )
+
+        try:
+            success = user_storage.update_password(
+                current_user.id,
+                current_password=password_data.current_password,
+                new_password=password_data.new_password,
+            )
+        except StorageError as e:
+            raise HTTPException(
+                status_code=401,
+                detail=str(e),
+            ) from e
+
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User profile not found for ID '{current_user.id}'",
+            )
+
+        return MessageResponse(message="Password updated successfully")
 
     @app.get("/api/v1/todos", response_model=list[TodoResponse])
     async def list_todos(
