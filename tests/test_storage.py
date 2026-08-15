@@ -341,3 +341,16 @@ def test_filter_by_priority_not_found():
         
         result = storage.filter_by_priority("low")
         assert result == []
+
+
+def test_load_corrupted_json():
+    """Test that loading a corrupted JSON file returns an empty list."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        # Write corrupted JSON (truncated last entry with extra field)
+        storage_path.write_text(
+            '[{"id": "1", "title": "Test", "description": "", "due": "2024-12-31", "completed": false, "created_at": "2024-01-01T00:00:00", "priority": "medium"},\n  {"id": "2", "title": "Bad", "due": "2024-12-31", "completed": false, "created_at": "2024-01-01T00:00:00", "priority": "medium", "user_id": '
+        )
+        todos = storage.load()
+        assert todos == []
