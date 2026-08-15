@@ -7,19 +7,23 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from snekdo.api import create_app
-from snekdo.api_client import AuthenticationError, ConnectionError, ServerHttpClient, ServerError, SyncSummary
-from snekdo.web import register_web_routes
+from snekdo.api_client import (
+    AuthenticationError,
+    ConnectionError,
+    ServerError,
+    ServerHttpClient,
+    SyncSummary,
+)
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage
-
+from snekdo.web import register_web_routes
 
 CREDENTIALS_PATH = Path.home() / ".snekdo" / "credentials.json"
 
 
-def _get_credentials_path(storage_path: Optional[Path] = None) -> Path:
+def _get_credentials_path(storage_path: Path | None = None) -> Path:
     """Return the path to the credentials file.
 
     Uses the default ``~/.snekdo/credentials.json`` unless a custom
@@ -31,7 +35,7 @@ def _get_credentials_path(storage_path: Optional[Path] = None) -> Path:
     return CREDENTIALS_PATH
 
 
-def _read_credentials(credentials_path: Path) -> Optional[dict]:
+def _read_credentials(credentials_path: Path) -> dict | None:
     """Read the stored credentials from disk.
 
     Returns:
@@ -40,11 +44,13 @@ def _read_credentials(credentials_path: Path) -> Optional[dict]:
     """
     if not credentials_path.exists():
         return None
-    with open(credentials_path, "r") as f:
+    with open(credentials_path) as f:
         return json.load(f)
 
 
-def _write_credentials(credentials_path: Path, access_token: str, token_type: str = "bearer") -> None:
+def _write_credentials(
+    credentials_path: Path, access_token: str, token_type: str = "bearer"
+) -> None:
     """Write credentials to disk."""
     credentials_path.parent.mkdir(parents=True, exist_ok=True)
     with open(credentials_path, "w") as f:
@@ -77,7 +83,10 @@ def validate_due_date(due_date: str) -> str:
             raise ValueError(f"Due date '{due_date}' cannot be in the past")
         return due_date
     except ValueError:
-        raise ValueError(f"Invalid due date format: '{due_date}'. Use YYYY-MM-DD format and a future date")
+        raise ValueError(
+            f"Invalid due date format: '{due_date}'. "
+            f"Use YYYY-MM-DD format and a future date"
+        )
 
 
 def _parse_created_at(created_at: str) -> datetime:
@@ -93,6 +102,7 @@ def _parse_created_at(created_at: str) -> datetime:
     except (ValueError, TypeError):
         return datetime.min
 
+
 def _truncate_title(title: str, max_width: int) -> str:
     """Truncate a title to fit within max_width, appending an ellipsis.
 
@@ -105,14 +115,15 @@ def _truncate_title(title: str, max_width: int) -> str:
     return title[: max_width - 3] + "..."
 
 
-
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
         prog="snekdo",
         description="A simple CLI todo list manager",
     )
-    parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
     parser.add_argument("--debug", action="store_true", help="Print debug information")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -122,88 +133,183 @@ def create_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--title", required=True, help="Title of the todo")
     add_parser.add_argument("--description", default="", help="Description of the todo")
     add_parser.add_argument("--due", help="Due date (e.g., 2024-12-31)")
-    add_parser.add_argument("--priority", default="medium", choices=["low", "medium", "high"], help="Priority level (low, medium, high)")
-    add_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    add_parser.add_argument(
+        "--priority",
+        default="medium",
+        choices=["low", "medium", "high"],
+        help="Priority level (low, medium, high)",
+    )
+    add_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # List command
     list_parser = subparsers.add_parser("list", help="List all todo items")
-    list_parser.add_argument("--status", choices=["all", "pending", "completed"], default="pending")
+    list_parser.add_argument(
+        "--status", choices=["all", "pending", "completed"], default="pending"
+    )
     list_parser.add_argument("--limit", type=int, help="Limit the number of results")
-    list_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="Filter by priority level")
-    list_parser.add_argument("--sort", default="created_at", choices=["created_at", "title", "priority", "completed"], help="Sort by field (created_at, title, priority, completed)")
-    list_parser.add_argument("--reverse", action="store_true", default=False, dest="reverse", help="Reverse the sort order")
-    list_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    list_parser.add_argument(
+        "--priority",
+        default=None,
+        choices=["low", "medium", "high"],
+        help="Filter by priority level",
+    )
+    list_parser.add_argument(
+        "--sort",
+        default="created_at",
+        choices=["created_at", "title", "priority", "completed"],
+        help="Sort by field (created_at, title, priority, completed)",
+    )
+    list_parser.add_argument(
+        "--reverse",
+        action="store_true",
+        default=False,
+        dest="reverse",
+        help="Reverse the sort order",
+    )
+    list_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Complete command
     complete_parser = subparsers.add_parser("complete", help="Mark a todo as complete")
     complete_parser.add_argument("todo_id", help="ID of the todo to complete")
-    complete_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    complete_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Delete command
     delete_parser = subparsers.add_parser("delete", help="Delete a todo")
     delete_parser.add_argument("todo_id", help="ID of the todo to delete")
-    delete_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    delete_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Modify command
     modify_parser = subparsers.add_parser("modify", help="Modify an existing todo")
     modify_parser.add_argument("todo_id", help="ID of the todo to modify")
     modify_parser.add_argument("--title", help="New title for the todo")
-    modify_parser.add_argument("--description", default=None, help="New description for the todo")
-    modify_parser.add_argument("--due", help="New due date for the todo (e.g., 2024-12-31)")
-    modify_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="New priority level")
-    modify_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    modify_parser.add_argument(
+        "--description", default=None, help="New description for the todo"
+    )
+    modify_parser.add_argument(
+        "--due", help="New due date for the todo (e.g., 2024-12-31)"
+    )
+    modify_parser.add_argument(
+        "--priority",
+        default=None,
+        choices=["low", "medium", "high"],
+        help="New priority level",
+    )
+    modify_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Show command
     show_parser = subparsers.add_parser("show", help="Show details of a todo item")
     show_parser.add_argument("todo_id", help="ID of the todo to show")
-    show_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    show_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Serve command
     serve_parser = subparsers.add_parser("serve", help="Start the FastAPI server")
-    serve_parser.add_argument("--host", default="127.0.0.1", help="Host to bind the server")
-    serve_parser.add_argument("--port", type=int, default=8000, help="Port to bind the server")
-    serve_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    serve_parser.add_argument(
+        "--host", default="127.0.0.1", help="Host to bind the server"
+    )
+    serve_parser.add_argument(
+        "--port", type=int, default=8000, help="Port to bind the server"
+    )
+    serve_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Sync command
-    sync_parser = subparsers.add_parser("sync", help="Synchronize with the FastAPI server")
-    sync_parser.add_argument("--server", default="http://127.0.0.1:8000", help="Server base URL")
-    sync_parser.add_argument("--direction", choices=["pull", "push", "both"], default="both", help="Sync direction")
-    sync_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    sync_parser = subparsers.add_parser(
+        "sync", help="Synchronize with the FastAPI server"
+    )
+    sync_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    sync_parser.add_argument(
+        "--direction",
+        choices=["pull", "push", "both"],
+        default="both",
+        help="Sync direction",
+    )
+    sync_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Register command
     register_parser = subparsers.add_parser("register", help="Register a new account")
-    register_parser.add_argument("--username", required=True, help="Username for the new account")
-    register_parser.add_argument("--password", required=True, help="Password for the new account")
-    register_parser.add_argument("--server", default="http://127.0.0.1:8000", help="Server base URL")
-    register_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    register_parser.add_argument(
+        "--username", required=True, help="Username for the new account"
+    )
+    register_parser.add_argument(
+        "--password", required=True, help="Password for the new account"
+    )
+    register_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    register_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Login command
     login_parser = subparsers.add_parser("login", help="Log in to an existing account")
     login_parser.add_argument("--username", required=True, help="Username")
     login_parser.add_argument("--password", required=True, help="Password")
-    login_parser.add_argument("--server", default="http://127.0.0.1:8000", help="Server base URL")
-    login_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    login_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    login_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Logout command
-    logout_parser = subparsers.add_parser("logout", help="Log out and remove stored credentials")
-    logout_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    logout_parser = subparsers.add_parser(
+        "logout", help="Log out and remove stored credentials"
+    )
+    logout_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Profile command
     profile_parser = subparsers.add_parser("profile", help="View your profile")
-    profile_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    profile_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Profile update command
-    profile_update_parser = subparsers.add_parser("profile-update", help="Update your profile")
-    profile_update_parser.add_argument("--display-name", default=None, help="New display name")
+    profile_update_parser = subparsers.add_parser(
+        "profile-update", help="Update your profile"
+    )
+    profile_update_parser.add_argument(
+        "--display-name", default=None, help="New display name"
+    )
     profile_update_parser.add_argument("--email", default=None, help="New email")
-    profile_update_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    profile_update_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Change password command
-    change_password_parser = subparsers.add_parser("change-password", help="Change your password")
-    change_password_parser.add_argument("--current-password", required=True, help="Current password")
-    change_password_parser.add_argument("--new-password", required=True, help="New password")
-    change_password_parser.add_argument("--confirm-password", required=True, help="Confirm new password")
-    change_password_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    change_password_parser = subparsers.add_parser(
+        "change-password", help="Change your password"
+    )
+    change_password_parser.add_argument(
+        "--current-password", required=True, help="Current password"
+    )
+    change_password_parser.add_argument(
+        "--new-password", required=True, help="New password"
+    )
+    change_password_parser.add_argument(
+        "--confirm-password", required=True, help="Confirm new password"
+    )
+    change_password_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     return parser
 
@@ -318,23 +424,31 @@ def handle_list(args, parser) -> int:
     sort_key = args.sort
     valid_sort_fields = {"created_at", "title", "priority", "completed"}
     if sort_key not in valid_sort_fields:
-        print(f"Error: Invalid sort field '{sort_key}'. Valid sort fields are: created_at, title, priority, completed", file=sys.stderr)
+        print(
+            f"Error: Invalid sort field '{sort_key}'. "
+            f"Valid sort fields are: created_at, title, priority, completed",
+            file=sys.stderr,
+        )
         return 1
 
     # Sort by the specified field
     if sort_key == "created_at":
-        todos = sorted(todos, key=lambda x: _parse_created_at(x.created_at), reverse=args.reverse)
+        todos = sorted(
+            todos, key=lambda x: _parse_created_at(x.created_at), reverse=args.reverse
+        )
     elif sort_key == "title":
         todos = sorted(todos, key=lambda x: x.title.lower(), reverse=args.reverse)
     elif sort_key == "priority":
         priority_order = {"high": 0, "medium": 1, "low": 2}
-        todos = sorted(todos, key=lambda x: priority_order.get(x.priority, 1), reverse=args.reverse)
+        todos = sorted(
+            todos, key=lambda x: priority_order.get(x.priority, 1), reverse=args.reverse
+        )
     elif sort_key == "completed":
         todos = sorted(todos, key=lambda x: x.completed, reverse=args.reverse)
 
     # Limit results
     if args.limit:
-        todos = todos[:args.limit]
+        todos = todos[: args.limit]
 
     if not todos:
         print("No todos found.")
@@ -410,8 +524,17 @@ def handle_delete(args, parser) -> int:
 def handle_modify(args, parser) -> int:
     """Handle the modify command."""
     # Validate that at least one field is being updated
-    if args.title is None and args.description is None and args.due is None and args.priority is None:
-        print("Error: No fields to update. Use --title, --description, --due, or --priority to specify fields to update.")
+    if (
+        args.title is None
+        and args.description is None
+        and args.due is None
+        and args.priority is None
+    ):
+        print(
+            "Error: No fields to update. "
+            "Use --title, --description, --due, "
+            "or --priority to specify fields to update."
+        )
         return 1
 
     storage = TodoStorage(storage_path=getattr(args, "storage", None))
@@ -468,7 +591,10 @@ def handle_serve(args, parser) -> int:
     try:
         import uvicorn
     except ImportError:
-        print("Error: uvicorn is not installed. Install with: pip install uvicorn", file=sys.stderr)
+        print(
+            "Error: uvicorn is not installed. Install with: pip install uvicorn",
+            file=sys.stderr,
+        )
         return 1
 
     storage_path = _get_storage_path(args)
@@ -484,14 +610,15 @@ def handle_serve(args, parser) -> int:
 
 def handle_sync(args, parser) -> int:
     """Handle the sync command to synchronize with the FastAPI server."""
-    
- 
+
     storage_path = _get_storage_path(args)
     credentials_path = _get_credentials_path(storage_path)
     client = ServerHttpClient(base_url=args.server)
 
     try:
-        summary = _sync(client, storage_path, args.direction, credentials_path=credentials_path)
+        summary = _sync(
+            client, storage_path, args.direction, credentials_path=credentials_path
+        )
         print(summary)
         if summary.errors:
             for error in summary.errors:
@@ -659,7 +786,12 @@ def handle_change_password(args, parser) -> int:
     return 0
 
 
-def _sync(client: ServerHttpClient, storage_path: Path, direction: str, credentials_path: Optional[Path] = None) -> SyncSummary:
+def _sync(
+    client: ServerHttpClient,
+    storage_path: Path,
+    direction: str,
+    credentials_path: Path | None = None,
+) -> SyncSummary:
     """Synchronize local storage with the server.
 
     Args:

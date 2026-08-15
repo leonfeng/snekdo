@@ -1,35 +1,34 @@
 """Tests for the CLI layer."""
 
-from unittest import mock
 import io
+import json
+from unittest import mock
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-import json
-
-from nanoid import generate
-from snekdo.models import Todo
 from snekdo.__main__ import (
-    main,
-    handle_command,
     handle_add,
-    handle_list,
+    handle_change_password,
+    handle_command,
     handle_complete,
     handle_delete,
+    handle_list,
     handle_modify,
-    handle_show,
     handle_profile,
     handle_profile_update,
-    handle_change_password,
+    handle_show,
+    main,
 )
+from snekdo.models import Todo
 
 
 def _parse_list_line(line):
     """Parse a list output line into its columns.
 
     The list output format is:
-    {ID:<id_width} {Title:<title_width} {Status:<10} {Priority:<10} {Due:<15} {Created At:<25}
+    {ID:<id_width} {Title:<title_width}
+    {Status:<10} {Priority:<10} {Due:<15} {Created At:<25}
 
     Since all columns except ID and Title are fixed-width, we parse from the right.
     """
@@ -88,22 +87,13 @@ class TestCLI:
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
             mock_storage_instance.load.return_value = []
-            
+
             # This would be called in handle_add
-            from datetime import datetime
-            todo = Todo(
-                id=generate(),
-                title=args.title,
-                description=args.description,
-                due=args.due,
-                completed=False,
-                created_at=datetime.now().isoformat(),
-            )
             mock_storage_instance.load.return_value = []
-            
+
             # Call the function
             result = handle_add(args, None)
-            
+
             # Verify
             assert result == 0
             mock_storage_instance.add.assert_called_once()
@@ -144,7 +134,7 @@ class TestCLI:
                     created_at="2024-01-01T00:00:00",
                 )
             ]
-            
+
             result = handle_list(args, None)
             assert result == 0
 
@@ -179,7 +169,7 @@ class TestCLI:
                 created_at="2024-01-01T00:00:00",
             )
             mock_storage_instance.get.return_value = todo
-            
+
             result = handle_complete(args, None)
             assert result == 0
 
@@ -214,21 +204,20 @@ class TestCLI:
                 created_at="2024-01-01T00:00:00",
             )
             mock_storage_instance.get.return_value = todo
-            
+
             result = handle_delete(args, None)
             assert result == 0
 
     def test_main_entry_point(self):
         """Test the main entry point."""
         with patch('snekdo.__main__.argparse') as mock_argparse:
-            parser = mock_argparse.ArgumentParser()
             args = mock_argparse.Namespace()
             args.command = None
             args.storage = None
             args.debug = False
             mock_argparse.Namespace.return_value = args
             mock_argparse.ArgumentParser.return_value.parse_args.return_value = args
-            
+
             result = main()
             assert result == 0
 
@@ -266,7 +255,7 @@ class TestCLI:
                 created_at="2024-01-01T00:00:00",
             )
             mock_storage_instance.get.return_value = todo
-            
+
             result = handle_modify(args, None)
             assert result == 0
             mock_storage_instance.modify.assert_called_once()
@@ -287,7 +276,7 @@ class TestCLI:
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
             mock_storage_instance.get.return_value = None
-            
+
             result = handle_modify(args, None)
             assert result == 1
 
@@ -455,7 +444,7 @@ class TestCLI:
             mock_storage_instance.get.return_value = todo
             result = handle_modify(args, None)
             assert result == 0
-            mock_storage_instance.modify.assert_called_once_with("1", title="Updated Title")
+            mock_storage_instance.modify.assert_called_once_with("1", title="Updated Title")  # noqa: E501
 
     def test_add_todo_with_priority(self, tmp_path):
         """Test adding a todo with priority."""
@@ -542,7 +531,7 @@ class TestCLI:
             # Verify the list was filtered by priority
             all_todos = mock_storage_instance.load.return_value
             assert len(all_todos) == 2
-            # The actual filtering happens in handle_list, so we just verify no error occurred
+            # The actual filtering happens in handle_list, so we just verify no error occurred  # noqa: E501
 
     def test_modify_todo_with_priority(self, tmp_path):
         """Test modifying a todo's priority."""
@@ -591,9 +580,9 @@ class TestCLI:
         """Test listing todos sorted by title."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Cherry", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Apple", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
-            {"id": "3", "title": "Banana", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Cherry", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Apple", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "3", "title": "Banana", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -619,12 +608,12 @@ class TestCLI:
             # Capture stdout
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Apple", "Banana", "Cherry"]
 
@@ -671,12 +660,12 @@ class TestCLI:
 
             output = io.StringIO()
             with patch("builtins.print", return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + "\n")
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + "\n")  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip("\n").split("\n") if line and not line.startswith("---")]
+            lines = [line for line in output_str.rstrip("\n").split("\n") if line and not line.startswith("---")]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
 
             # The long title should be truncated with ellipsis
@@ -714,12 +703,12 @@ class TestCLI:
 
             output = io.StringIO()
             with patch("builtins.print", return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + "\n")
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + "\n")  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip("\n").split("\n") if line and not line.startswith("---")]
+            lines = [line for line in output_str.rstrip("\n").split("\n") if line and not line.startswith("---")]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
 
             assert titles == ["Apple"]
@@ -728,9 +717,9 @@ class TestCLI:
         """Test listing todos sorted by title in reverse order."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Cherry", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "description": "", "title": "Apple", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
-            {"id": "3", "title": "Banana", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Cherry", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "description": "", "title": "Apple", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "3", "title": "Banana", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -755,12 +744,12 @@ class TestCLI:
             import io
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Cherry", "Banana", "Apple"]
 
@@ -768,9 +757,9 @@ class TestCLI:
         """Test listing todos sorted by priority."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Low", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "low"},
-            {"id": "2", "title": "High", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "high"},
-            {"id": "3", "title": "Medium", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Low", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "low"},  # noqa: E501
+            {"id": "2", "title": "High", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "high"},  # noqa: E501
+            {"id": "3", "title": "Medium", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -795,12 +784,12 @@ class TestCLI:
             import io
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["High", "Medium", "Low"]
 
@@ -808,9 +797,9 @@ class TestCLI:
         """Test listing todos sorted by created_at."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Old", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "New", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},
-            {"id": "3", "title": "Medium", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Old", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "New", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "3", "title": "Medium", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -835,12 +824,12 @@ class TestCLI:
             import io
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Old", "Medium", "New"]
 
@@ -848,9 +837,9 @@ class TestCLI:
         """Test listing todos sorted by created_at with microsecond precision."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "First", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.123456", "priority": "medium"},
-            {"id": "2", "title": "Second", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.654321", "priority": "medium"},
-            {"id": "3", "title": "Third", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.000000", "priority": "medium"},
+            {"id": "1", "title": "First", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.123456", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Second", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.654321", "priority": "medium"},  # noqa: E501
+            {"id": "3", "title": "Third", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.000000", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -874,12 +863,12 @@ class TestCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Third", "First", "Second"]
 
@@ -887,9 +876,9 @@ class TestCLI:
         """Test listing todos sorted by created_at in reverse order."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Old", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "New", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},
-            {"id": "3", "title": "Medium", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Old", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "New", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "3", "title": "Medium", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -913,12 +902,12 @@ class TestCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["New", "Medium", "Old"]
 
@@ -926,9 +915,9 @@ class TestCLI:
         """Test listing todos with empty created_at values sort consistently."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Has Date", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Empty Date", "description": "", "due": None, "completed": False, "created_at": "", "priority": "medium"},
-            {"id": "3", "title": "Also Has Date", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Has Date", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Empty Date", "description": "", "due": None, "completed": False, "created_at": "", "priority": "medium"},  # noqa: E501
+            {"id": "3", "title": "Also Has Date", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -952,12 +941,12 @@ class TestCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Empty Date", "Also Has Date", "Has Date"]
 
@@ -965,9 +954,9 @@ class TestCLI:
         """Test listing todos with mixed-precision ISO 8601 created_at values."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "NoMicro", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "WithMicro", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.000000", "priority": "medium"},
-            {"id": "3", "title": "Later", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "NoMicro", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "WithMicro", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00.000000", "priority": "medium"},  # noqa: E501
+            {"id": "3", "title": "Later", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -991,12 +980,12 @@ class TestCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["NoMicro", "WithMicro", "Later"]
 
@@ -1004,9 +993,9 @@ class TestCLI:
         """Test listing todos sorted by completed status."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Done", "description": "", "due": None, "completed": True, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Pending", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
-            {"id": "3", "title": "Also Done", "description": "", "due": None, "completed": True, "created_at": "2024-01-03T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Done", "description": "", "due": None, "completed": True, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Pending", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "3", "title": "Also Done", "description": "", "due": None, "completed": True, "created_at": "2024-01-03T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1031,12 +1020,12 @@ class TestCLI:
             import io
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             titles = [_parse_list_line(line)[1] for line in lines[1:]]
             assert titles == ["Pending", "Done", "Also Done"]
 
@@ -1044,8 +1033,8 @@ class TestCLI:
         """Test completing a todo preserves other todos using real storage."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "First", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Second", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "First", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Second", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1108,9 +1097,9 @@ class TestCLI:
         """Test that sorting works correctly with real storage."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Cherry", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Apple", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
-            {"id": "3", "title": "Banana", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Cherry", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Apple", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "3", "title": "Banana", "description": "", "due": None, "completed": False, "created_at": "2024-01-03T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1135,7 +1124,7 @@ class TestCLI:
         storage_file = tmp_path / "custom" / "todos.json"
         storage_file.parent.mkdir(parents=True, exist_ok=True)
         todos = [
-            {"id": "1", "title": "First", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "First", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1160,8 +1149,8 @@ class TestCLI:
         """Test that deleting a todo preserves other todos using real storage."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "First", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Second", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "First", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Second", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1181,7 +1170,7 @@ class TestCLI:
         """Test that the list output includes a Created At header."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1211,7 +1200,7 @@ class TestCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
@@ -1252,7 +1241,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_profile(args, None)
 
             assert result == 0
@@ -1288,7 +1277,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_profile_update(args, None)
 
             assert result == 0
@@ -1321,7 +1310,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_change_password(args, None)
 
             assert result == 0
@@ -1341,11 +1330,11 @@ class TestProfileCLI:
 
         with patch('snekdo.__main__.ServerHttpClient') as mock_client:
             mock_instance = mock_client.return_value
-            mock_instance.get_profile.side_effect = AuthenticationError("Authentication error")
+            mock_instance.get_profile.side_effect = AuthenticationError("Authentication error")  # noqa: E501
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_profile(args, None)
 
             assert result == 1
@@ -1354,8 +1343,8 @@ class TestProfileCLI:
         """Test that the list output displays the created_at value for each todo."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Another todo", "description": "", "due": "2027-12-31", "completed": True, "created_at": "2024-01-03T00:00:00", "priority": "high"},
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Another todo", "description": "", "due": "2027-12-31", "completed": True, "created_at": "2024-01-03T00:00:00", "priority": "high"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1394,7 +1383,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
@@ -1406,7 +1395,7 @@ class TestProfileCLI:
         """Test that the list output handles empty created_at values."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "", "priority": "medium"},
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1436,7 +1425,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
@@ -1447,8 +1436,8 @@ class TestProfileCLI:
         """Test that completed items are hidden by default when listing."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Pending todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Completed todo", "description": "", "due": None, "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Pending todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Completed todo", "description": "", "due": None, "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1487,7 +1476,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
@@ -1499,8 +1488,8 @@ class TestProfileCLI:
         """Test that --status all still shows completed items."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Pending todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Completed todo", "description": "", "due": None, "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Pending todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Completed todo", "description": "", "due": None, "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1539,7 +1528,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
@@ -1551,8 +1540,8 @@ class TestProfileCLI:
         """Test that the list output displays pending status as text."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Pending todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "Completed todo", "description": "", "due": None, "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Pending todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "Completed todo", "description": "", "due": None, "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1591,7 +1580,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
@@ -1602,8 +1591,8 @@ class TestProfileCLI:
         """Test that the ID column width is computed from the longest ID in the list."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Short ID", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "very-long-id-that-is-30-chars", "title": "Long ID", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Short ID", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "very-long-id-that-is-30-chars", "title": "Long ID", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1642,12 +1631,12 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             parsed_ids = [_parse_list_line(line)[0] for line in lines[1:]]
             assert "1" in parsed_ids
             assert "very-long-id-that-is-30-chars" in parsed_ids
@@ -1657,7 +1646,7 @@ class TestProfileCLI:
         long_id = "abcdefghijklmnopqrstuvwxyz1234567890"  # 40 chars, exceeds 35 max
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": long_id, "title": "Long ID todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": long_id, "title": "Long ID todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -1687,12 +1676,12 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_list(args, None)
 
             assert result == 0
             output_str = output.getvalue()
-            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+            lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
             parsed_id = _parse_list_line(lines[1])[0]
             assert parsed_id == long_id[:32] + "..."
 
@@ -1732,7 +1721,7 @@ class TestProfileCLI:
         import io
         output = io.StringIO()
         with patch("builtins.print", return_value=None) as mock_print:
-            mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + chr(10))
+            mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + chr(10))  # noqa: E501
             result = handle_list(args, None)
 
         assert result == 1
@@ -1779,7 +1768,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_show(args, None)
 
             assert result == 0
@@ -1807,7 +1796,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_show(args, None)
 
             assert result == 1
@@ -1849,7 +1838,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_show(args, None)
 
             assert result == 0
@@ -1891,7 +1880,7 @@ class TestProfileCLI:
 
             output = io.StringIO()
             with patch('builtins.print', return_value=None) as mock_print:
-                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')
+                mock_print.side_effect = lambda *args, **kwargs: output.write(str(args[0]) + '\n')  # noqa: E501
                 result = handle_show(args, None)
 
             assert result == 0
@@ -2121,7 +2110,7 @@ class TestProfileCLI:
 
 
 class TestStorageFlagPlacement:
-    """Tests for the --storage flag working in both global and per-subcommand positions."""
+    """Tests for the --storage flag working in both global and per-subcommand positions."""  # noqa: E501
 
     def test_storage_before_subcommand(self):
         """Test that --storage works before the subcommand (backward compatibility)."""
@@ -2143,7 +2132,7 @@ class TestStorageFlagPlacement:
         """Test that --storage works after the add subcommand."""
         from snekdo.__main__ import create_parser
         parser = create_parser()
-        args = parser.parse_args(['add', '--storage', '/tmp/test.json', '--title', 'Test'])
+        args = parser.parse_args(['add', '--storage', '/tmp/test.json', '--title', 'Test'])  # noqa: E501
         assert args.storage == "/tmp/test.json"
         assert args.command == "add"
         assert args.title == "Test"
@@ -2170,7 +2159,7 @@ class TestStorageFlagPlacement:
         """Test that --storage works after the modify subcommand."""
         from snekdo.__main__ import create_parser
         parser = create_parser()
-        args = parser.parse_args(['modify', '--storage', '/tmp/test.json', '123', '--title', 'New Title'])
+        args = parser.parse_args(['modify', '--storage', '/tmp/test.json', '123', '--title', 'New Title'])  # noqa: E501
         assert args.storage == "/tmp/test.json"
         assert args.command == "modify"
         assert args.todo_id == "123"
@@ -2257,7 +2246,7 @@ class TestMissingStorageAttribute:
         default_dir.mkdir()
         default_file = default_dir / "todos.json"
         todos = [
-            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         default_file.write_text(json.dumps(todos))
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -2278,7 +2267,7 @@ class TestMissingStorageAttribute:
         default_dir.mkdir()
         default_file = default_dir / "todos.json"
         todos = [
-            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         default_file.write_text(json.dumps(todos))
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -2299,12 +2288,12 @@ class TestMissingStorageAttribute:
         default_dir.mkdir()
         default_file = default_dir / "todos.json"
         todos = [
-            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         default_file.write_text(json.dumps(todos))
         monkeypatch.setenv("HOME", str(tmp_path))
 
-        args = self._make_args("modify", todo_id="1", title="Updated", description=None, due=None, priority=None)
+        args = self._make_args("modify", todo_id="1", title="Updated", description=None, due=None, priority=None)  # noqa: E501
         assert not hasattr(args, "storage")
 
         from snekdo.__main__ import handle_modify
@@ -2320,7 +2309,7 @@ class TestMissingStorageAttribute:
         default_dir.mkdir()
         default_file = default_dir / "todos.json"
         todos = [
-            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         default_file.write_text(json.dumps(todos))
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -2336,7 +2325,7 @@ class TestMissingStorageAttribute:
         """Test that handlers call TodoStorage with None when --storage is omitted."""
         monkeypatch.setenv("HOME", str(tmp_path))
 
-        args = self._make_args("add", title="Test", description="", due=None, priority="medium")
+        args = self._make_args("add", title="Test", description="", due=None, priority="medium")  # noqa: E501
         assert not hasattr(args, "storage")
 
         from snekdo.__main__ import handle_add
@@ -2372,7 +2361,7 @@ class TestDebugFlag:
         """Test that debug output is printed to stderr."""
         storage_file = tmp_path / "todos.json"
         storage_file.write_text("[]")
-        from snekdo.__main__ import create_parser, handle_command
+        from snekdo.__main__ import create_parser
         parser = create_parser()
         args = parser.parse_args(['--debug', 'list', '--storage', str(storage_file)])
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
@@ -2387,9 +2376,9 @@ class TestDebugFlag:
         """Test that debug output includes the command name."""
         storage_file = tmp_path / "todos.json"
         storage_file.write_text("[]")
-        from snekdo.__main__ import create_parser, handle_command
+        from snekdo.__main__ import create_parser
         parser = create_parser()
-        args = parser.parse_args(['--debug', 'add', '--storage', str(storage_file), '--title', 'Test'])
+        args = parser.parse_args(['--debug', 'add', '--storage', str(storage_file), '--title', 'Test'])  # noqa: E501
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
             mock_storage_instance.load.return_value = []
@@ -2402,7 +2391,7 @@ class TestDebugFlag:
         """Test that debug output includes the storage path."""
         storage_file = tmp_path / "todos.json"
         storage_file.write_text("[]")
-        from snekdo.__main__ import create_parser, handle_command
+        from snekdo.__main__ import create_parser
         parser = create_parser()
         args = parser.parse_args(['--debug', 'list', '--storage', str(storage_file)])
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
@@ -2417,7 +2406,7 @@ class TestDebugFlag:
         """Test that debug output is suppressed when --debug is not set."""
         storage_file = tmp_path / "todos.json"
         storage_file.write_text("[]")
-        from snekdo.__main__ import create_parser, handle_command
+        from snekdo.__main__ import create_parser
         parser = create_parser()
         args = parser.parse_args(['list', '--storage', str(storage_file)])
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
@@ -2460,17 +2449,17 @@ class TestUniformColumnWhitespace:
     def test_uniform_whitespace_between_columns(self, tmp_path):
         """Test that whitespace between columns is uniform (single space)."""
         todos = [
-            {"id": "1", "title": "Short", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
-            {"id": "2", "title": "A much longer title that exceeds normal width", "description": "", "due": "2024-12-31", "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "high"},
+            {"id": "1", "title": "Short", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            {"id": "2", "title": "A much longer title that exceeds normal width", "description": "", "due": "2024-12-31", "completed": True, "created_at": "2024-01-02T00:00:00", "priority": "high"},  # noqa: E501
         ]
         output_str = self._make_list_output(todos, tmp_path)
-        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
         header = lines[0]
         # Check that the header has single-space separators between columns
         assert "Title" in header
         # Verify that the separator between columns is a single space
         parts = header.split(' ')
-        # After splitting on single space, we should have non-empty parts for each column
+        # After splitting on single space, we should have non-empty parts for each column  # noqa: E501
         non_empty = [p for p in parts if p]
         assert "Status" in non_empty
         assert "Priority" in non_empty
@@ -2481,40 +2470,40 @@ class TestUniformColumnWhitespace:
     def test_header_aligns_with_data_rows(self, tmp_path):
         """Test that the table header aligns with data rows."""
         todos = [
-            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         output_str = self._make_list_output(todos, tmp_path)
-        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
         header = lines[0]
         data_row = lines[1]
         # Check that the header and data row have the same length
-        assert len(header) == len(data_row), f"Header length {len(header)} != data row length {len(data_row)}"
+        assert len(header) == len(data_row), f"Header length {len(header)} != data row length {len(data_row)}"  # noqa: E501
 
     def test_single_space_separator_between_columns(self, tmp_path):
         """Test that there is exactly one space between columns in the header."""
         todos = [
-            {"id": "1", "title": "Test", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Test", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         output_str = self._make_list_output(todos, tmp_path)
-        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
         header = lines[0]
         # Check that "Status" is preceded by exactly one space (not multiple)
         status_pos = header.find("Status")
         assert status_pos > 0 and header[status_pos - 1] == ' '
         if status_pos > 1:
-            assert header[status_pos - 2] != ' ' or header[status_pos - 1] != ' ', "Multiple spaces before Status"
+            assert header[status_pos - 2] != ' ' or header[status_pos - 1] != ' ', "Multiple spaces before Status"  # noqa: E501
 
     def test_fixed_width_columns_padded_consistently(self, tmp_path):
         """Test that fixed-width columns are padded consistently."""
         todos = [
-            {"id": "1", "title": "Test", "description": "", "due": "", "completed": False, "created_at": "", "priority": "medium"},
+            {"id": "1", "title": "Test", "description": "", "due": "", "completed": False, "created_at": "", "priority": "medium"},  # noqa: E501
         ]
         output_str = self._make_list_output(todos, tmp_path)
-        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]
+        lines = [line for line in output_str.rstrip('\n').split('\n') if line and not line.startswith('---')]  # noqa: E501
         data_row = lines[1]
         # The Created At column should be 25 chars wide
         created_at_part = data_row[-25:]
-        assert len(created_at_part) == 25, f"Created At part length {len(created_at_part)} != 25"
+        assert len(created_at_part) == 25, f"Created At part length {len(created_at_part)} != 25"  # noqa: E501
         # The status column should be 10 chars wide
         status_part = data_row[1:11]  # after ID column (1 char) + space
         assert len(status_part) == 10, f"Status part length {len(status_part)} != 10"
@@ -2523,7 +2512,7 @@ class TestUniformColumnWhitespace:
 class TestSyncCommand:
     """Tests for the sync command."""
 
-    def _make_args(self, direction="both", server="http://127.0.0.1:8000", storage=None):
+    def _make_args(self, direction="both", server="http://127.0.0.1:8000", storage=None):  # noqa: E501
         """Create args for the sync command."""
         import argparse
         args = argparse.Namespace()
@@ -2545,7 +2534,7 @@ class TestSyncCommand:
         with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.get_todos.return_value = [
-                {"id": "1", "title": "Server todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+                {"id": "1", "title": "Server todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
             ]
             mock_client_class.return_value = mock_client
 
@@ -2563,7 +2552,7 @@ class TestSyncCommand:
         """Test that sync push uploads todos to the server."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -2589,7 +2578,7 @@ class TestSyncCommand:
         """Test that sync both downloads and uploads todos."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -2599,7 +2588,7 @@ class TestSyncCommand:
         with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.get_todos.return_value = [
-                {"id": "2", "title": "Server todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "high"},
+                {"id": "2", "title": "Server todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-02T00:00:00", "priority": "high"},  # noqa: E501
             ]
             mock_client_class.return_value = mock_client
 
@@ -2617,7 +2606,7 @@ class TestSyncCommand:
         """Test that pull uses server state on conflict."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Local version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Local version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -2627,7 +2616,7 @@ class TestSyncCommand:
         with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.get_todos.return_value = [
-                {"id": "1", "title": "Server version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "high"},
+                {"id": "1", "title": "Server version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "high"},  # noqa: E501
             ]
             mock_client_class.return_value = mock_client
 
@@ -2642,7 +2631,7 @@ class TestSyncCommand:
         """Test that push uses local state on conflict."""
         storage_file = tmp_path / "todos.json"
         todos = [
-            {"id": "1", "title": "Local version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},
+            {"id": "1", "title": "Local version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
         ]
         storage_file.write_text(json.dumps(todos))
 
@@ -2652,7 +2641,7 @@ class TestSyncCommand:
         with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.get_todos.return_value = [
-                {"id": "1", "title": "Server version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "high"},
+                {"id": "1", "title": "Server version", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "high"},  # noqa: E501
             ]
             mock_client.update_todo.return_value = {"id": "1", "title": "Local version"}
             mock_client_class.return_value = mock_client
@@ -2695,7 +2684,7 @@ class TestSyncCommand:
         storage_file = tmp_path / "todos.json"
         storage_file.write_text("[]")
 
-        args = self._make_args(direction="pull", server="not-a-valid-url", storage=str(storage_file))
+        args = self._make_args(direction="pull", server="not-a-valid-url", storage=str(storage_file))  # noqa: E501
 
         from snekdo.__main__ import handle_sync
         from snekdo.api_client import ConnectionError

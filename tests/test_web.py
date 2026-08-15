@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from snekdo.api import create_app
-from snekdo.web import register_web_routes, get_template_env
+from snekdo.web import get_template_env, register_web_routes
 
 
 @pytest.fixture
@@ -47,7 +46,7 @@ class TestRegistration:
         """Test that web registration records a non-empty created_at."""
         from snekdo.storage import UserStorage
 
-        user_storage = UserStorage(storage_path=str(client.app.state.user_id and client.app.state.storage_path.replace("todos.json", "users.json")))
+        user_storage = UserStorage(storage_path=str(client.app.state.user_id and client.app.state.storage_path.replace("todos.json", "users.json")))  # noqa: E501
         user = user_storage.get("testuser")
         assert user is not None
         assert user.created_at != ""
@@ -141,7 +140,7 @@ class TestEditPage:
         from snekdo.storage import TodoStorage
         storage_file = Path(client.app.state.storage_path)
         storage = TodoStorage(storage_path=str(storage_file))
-        todo = Todo(title="Original", description="Old desc", user_id=client.app.state.user_id)
+        todo = Todo(title="Original", description="Old desc", user_id=client.app.state.user_id)  # noqa: E501
         storage.add(todo)
 
         response = client.post(

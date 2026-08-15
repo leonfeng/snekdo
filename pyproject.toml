@@ -35,6 +35,7 @@ snekdo = "snekdo.__main__:main"
 [project.optional-dependencies]
 api = ["fastapi>=0.100", "uvicorn>=0.20"]
 test = ["pytest>=7.0", "pytest-cov>=4.0"]
+dev = ["ruff>=0.16"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -43,3 +44,9 @@ include = ["snekdo*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "PYI", "RUF"]

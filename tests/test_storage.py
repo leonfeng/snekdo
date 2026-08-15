@@ -180,7 +180,7 @@ def test_modify_multiple_fields():
             created_at="2024-01-01T00:00:00",
         )
         storage.add(todo)
-        result = storage.modify("1", title="New Title", description="New Desc", due="2025-01-01")
+        result = storage.modify("1", title="New Title", description="New Desc", due="2025-01-01")  # noqa: E501
         assert result is True
         updated = storage.get("1")
         assert updated.title == "New Title"
@@ -315,11 +315,11 @@ def test_filter_by_priority():
             priority="low",
         )
         storage.save([todo1, todo2])
-        
+
         high_priority = storage.filter_by_priority("high")
         assert len(high_priority) == 1
         assert high_priority[0].title == "High Priority"
-        
+
         low_priority = storage.filter_by_priority("low")
         assert len(low_priority) == 1
         assert low_priority[0].title == "Low Priority"
@@ -340,7 +340,7 @@ def test_filter_by_priority_not_found():
             priority="high",
         )
         storage.add(todo)
-        
+
         result = storage.filter_by_priority("low")
         assert result == []
 
@@ -352,7 +352,7 @@ def test_load_corrupted_json():
         storage = TodoStorage(storage_path=str(storage_path))
         # Write corrupted JSON (truncated last entry with extra field)
         storage_path.write_text(
-            '[{"id": "1", "title": "Test", "description": "", "due": "2024-12-31", "completed": false, "created_at": "2024-01-01T00:00:00", "priority": "medium"},\n  {"id": "2", "title": "Bad", "due": "2024-12-31", "completed": false, "created_at": "2024-01-01T00:00:00", "priority": "medium", "user_id": '
+            '[{"id": "1", "title": "Test", "description": "", "due": "2024-12-31", "completed": false, "created_at": "2024-01-01T00:00:00", "priority": "medium"},\n  {"id": "2", "title": "Bad", "due": "2024-12-31", "completed": false, "created_at": "2024-01-01T00:00:00", "priority": "medium", "user_id": '  # noqa: E501
         )
         todos = storage.load()
         assert todos == []
@@ -416,7 +416,7 @@ def test_user_storage_update_profile():
             created_at="2024-01-01T00:00:00",
         )
         storage.add(user)
-        result = storage.update_profile("1", display_name="New Name", email="new@example.com")
+        result = storage.update_profile("1", display_name="New Name", email="new@example.com")  # noqa: E501
         assert result is True
         updated = storage.get_by_id("1")
         assert updated.display_name == "New Name"
@@ -470,7 +470,7 @@ def test_user_storage_update_password():
             created_at="2024-01-01T00:00:00",
         )
         storage.add(user)
-        result = storage.update_password("1", current_password=original_password, new_password="new_password")
+        result = storage.update_password("1", current_password=original_password, new_password="new_password")  # noqa: E501
         assert result is True
         updated = storage.get_by_id("1")
         assert verify_password("new_password", updated.password_hash)
@@ -494,7 +494,7 @@ def test_user_storage_update_password_wrong_current():
         )
         storage.add(user)
         with pytest.raises(StorageError):
-            storage.update_password("1", current_password="wrong_password", new_password="new_password")
+            storage.update_password("1", current_password="wrong_password", new_password="new_password")  # noqa: E501
 
 
 def test_user_storage_get_profile():

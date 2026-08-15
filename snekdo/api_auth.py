@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
@@ -31,6 +30,7 @@ def _derive_users_path(storage_path: str | None) -> str:
 # Pydantic request / response models
 # ---------------------------------------------------------------------------
 
+
 class UserCreate(BaseModel):
     """Schema for creating a new user."""
 
@@ -55,7 +55,7 @@ class UserResponse(BaseModel):
     created_at: str
 
     @classmethod
-    def from_user(cls, user: User) -> "UserResponse":
+    def from_user(cls, user: User) -> UserResponse:
         return cls(
             id=user.id,
             username=user.username,
@@ -76,7 +76,8 @@ class TokenResponse(BaseModel):
 # Token extraction helper
 # ---------------------------------------------------------------------------
 
-def _get_token(authorization: Optional[str] = None) -> Optional[str]:
+
+def _get_token(authorization: str | None = None) -> str | None:
     """Extract the JWT token from the Authorization header.
 
     Args:
@@ -97,7 +98,8 @@ def _get_token(authorization: Optional[str] = None) -> Optional[str]:
 # get_current_user dependency
 # ---------------------------------------------------------------------------
 
-def get_current_user_factory(storage_path: Optional[str] = None):
+
+def get_current_user_factory(storage_path: str | None = None):
     """Create a get_current_user dependency for the given storage path.
 
     Args:
@@ -112,7 +114,7 @@ def get_current_user_factory(storage_path: Optional[str] = None):
 
     def get_current_user(
         user_storage: UserStorage = Depends(_get_user_storage),
-        authorization: Optional[str] = Header(default=None),
+        authorization: str | None = Header(default=None),
     ) -> User:
         """Get the current authenticated user from the JWT token.
 
@@ -156,7 +158,8 @@ get_current_user = get_current_user_factory()
 # Router
 # ---------------------------------------------------------------------------
 
-def create_auth_router(storage_path: Optional[str] = None) -> APIRouter:
+
+def create_auth_router(storage_path: str | None = None) -> APIRouter:
     """Create the authentication router with register and login endpoints.
 
     Args:
@@ -171,7 +174,11 @@ def create_auth_router(storage_path: Optional[str] = None) -> APIRouter:
 
     router = APIRouter()
 
-    @router.post("/api/v1/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+    @router.post(
+        "/api/v1/auth/register",
+        response_model=UserResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
     async def register(
         user_data: UserCreate,
         user_storage: UserStorage = Depends(_get_user_storage),

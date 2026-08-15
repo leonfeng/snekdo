@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, List, Optional
 
 from snekdo.auth import verify_password
 from snekdo.models import Todo, User
@@ -26,7 +26,7 @@ class StorageError(Exception):
 class TodoStorage:
     """Manages reading and writing todos to a JSON file."""
 
-    def __init__(self, storage_path: Optional[str] = None) -> None:
+    def __init__(self, storage_path: str | None = None) -> None:
         if storage_path is not None:
             self.storage_path = Path(storage_path)
         else:
@@ -54,7 +54,7 @@ class TodoStorage:
                 fcntl.flock(f, fcntl.LOCK_UN)
         f.close()
 
-    def load(self, user_id: Optional[str] = None) -> List[Todo]:
+    def load(self, user_id: str | None = None) -> list[Todo]:
         """Load all todos from the JSON file.
 
         Returns an empty list if the file does not exist or if the JSON is
@@ -84,7 +84,7 @@ class TodoStorage:
             todos = [t for t in todos if t.user_id == user_id]
         return todos
 
-    def save(self, todos: List[Todo]) -> None:
+    def save(self, todos: list[Todo]) -> None:
         """Save all todos to the JSON file."""
         self._ensure_dir()
         with self._open_file(self.storage_path, "w") as f:
@@ -99,7 +99,7 @@ class TodoStorage:
         todos.append(todo)
         self.save(todos)
 
-    def get(self, todo_id: str, user_id: Optional[str] = None) -> Optional[Todo]:
+    def get(self, todo_id: str, user_id: str | None = None) -> Todo | None:
         """Find a todo by ID.
 
         Args:
@@ -115,7 +115,7 @@ class TodoStorage:
                 return todo
         return None
 
-    def delete(self, todo_id: str, user_id: Optional[str] = None) -> bool:
+    def delete(self, todo_id: str, user_id: str | None = None) -> bool:
         """Remove a todo by ID.
 
         Args:
@@ -133,7 +133,7 @@ class TodoStorage:
         self.save(todos)
         return True
 
-    def complete(self, todo_id: str, user_id: Optional[str] = None) -> bool:
+    def complete(self, todo_id: str, user_id: str | None = None) -> bool:
         """Mark a todo as complete by ID.
 
         Args:
@@ -151,11 +151,11 @@ class TodoStorage:
                 return True
         return False
 
-    def get_all(self, user_id: Optional[str] = None) -> dict:
+    def get_all(self, user_id: str | None = None) -> dict:
         """Return all todos as a dict keyed by ID."""
         return {todo.id: todo for todo in self.load(user_id=user_id)}
 
-    def modify(self, todo_id: str, user_id: Optional[str] = None, **kwargs) -> bool:
+    def modify(self, todo_id: str, user_id: str | None = None, **kwargs) -> bool:
         """Modify an existing todo by ID.
 
         Args:
@@ -182,7 +182,7 @@ class TodoStorage:
                 return True
         return False
 
-    def filter_by_priority(self, priority: str) -> List[Todo]:
+    def filter_by_priority(self, priority: str) -> list[Todo]:
         """Filter todos by priority level.
 
         Args:
@@ -198,7 +198,7 @@ class TodoStorage:
 class UserStorage:
     """Manages reading and writing users to a JSON file."""
 
-    def __init__(self, storage_path: Optional[str] = None) -> None:
+    def __init__(self, storage_path: str | None = None) -> None:
         if storage_path is not None:
             # Derive the users file path from the todos file path.
             # If the path ends with 'todos.json', replace with 'users.json'.
@@ -232,7 +232,7 @@ class UserStorage:
                 fcntl.flock(f, fcntl.LOCK_UN)
         f.close()
 
-    def load(self) -> List[User]:
+    def load(self) -> list[User]:
         """Load all users from the JSON file.
 
         Returns:
@@ -244,7 +244,7 @@ class UserStorage:
             data = json.load(f)
         return [User.from_dict(user) for user in data]
 
-    def save(self, users: List[User]) -> None:
+    def save(self, users: list[User]) -> None:
         """Save all users to the JSON file."""
         self._ensure_dir()
         with self._open_file(self.storage_path, "w") as f:
@@ -268,7 +268,7 @@ class UserStorage:
         self.save(users)
         return user
 
-    def get(self, username: str) -> Optional[User]:
+    def get(self, username: str) -> User | None:
         """Find a user by username.
 
         Args:
@@ -282,7 +282,7 @@ class UserStorage:
                 return user
         return None
 
-    def get_by_id(self, user_id: str) -> Optional[User]:
+    def get_by_id(self, user_id: str) -> User | None:
         """Find a user by ID.
 
         Args:
@@ -316,8 +316,8 @@ class UserStorage:
     def update_profile(
         self,
         user_id: str,
-        display_name: Optional[str] = None,
-        email: Optional[str] = None,
+        display_name: str | None = None,
+        email: str | None = None,
     ) -> bool:
         """Update the display name and/or email of a user.
 
@@ -371,7 +371,7 @@ class UserStorage:
                 return True
         return False
 
-    def get_profile(self, user_id: str) -> Optional[User]:
+    def get_profile(self, user_id: str) -> User | None:
         """Find a user by ID, returning the user without the password hash.
 
         Args:

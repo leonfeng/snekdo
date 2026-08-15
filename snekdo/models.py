@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional
+from dataclasses import dataclass
+from enum import StrEnum
 
 from nanoid import generate
 
 
-class Status(str, Enum):
+class Status(StrEnum):
     """Enum for filtering todos by status."""
 
     ALL = "all"
@@ -17,7 +16,7 @@ class Status(str, Enum):
     COMPLETED = "completed"
 
 
-class Priority(str, Enum):
+class Priority(StrEnum):
     """Enum for todo priority levels."""
 
     LOW = "low"
@@ -58,7 +57,7 @@ class User:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "User":
+    def from_dict(cls, data: dict) -> User:
         """Deserialize from a dict loaded from JSON."""
         return cls(
             id=data.get("id", ""),
@@ -77,11 +76,11 @@ class Todo:
     id: str = ""
     title: str = ""
     description: str = ""
-    due: Optional[str] = None
+    due: str | None = None
     completed: bool = False
     created_at: str = ""  # ISO 8601
     priority: str = "medium"
-    user_id: Optional[str] = None
+    user_id: str | None = None
 
     def __post_init__(self):
         """Generate ID if not provided."""
@@ -104,7 +103,7 @@ class Todo:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Todo":
+    def from_dict(cls, data: dict) -> Todo:
         """Deserialize from a dict loaded from JSON."""
         return cls(
             id=data.get("id", ""),

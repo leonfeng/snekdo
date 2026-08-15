@@ -1,21 +1,14 @@
 """Tests for the FastAPI REST API."""
 
-import json
-import tempfile
 from pathlib import Path
-
-from unittest.mock import MagicMock, patch
-
-import pytest
 
 from fastapi.testclient import TestClient
 
 from snekdo.api import create_app
-from snekdo.api_client import ConnectionError, ServerHttpClient, ServerError
 from snekdo.storage import TodoStorage
 
 
-def _make_todo(title: str = "Test todo", description: str = "A test todo", due: str = "2025-12-31", priority: str = "medium"):
+def _make_todo(title: str = "Test todo", description: str = "A test todo", due: str = "2025-12-31", priority: str = "medium"):  # noqa: E501
     """Helper to create a Todo with a known ID."""
     from snekdo.models import Todo
     return Todo(
@@ -29,7 +22,7 @@ def _make_todo(title: str = "Test todo", description: str = "A test todo", due: 
     )
 
 
-def _register_and_login(client: TestClient, username: str | None = None, password: str = "password123") -> tuple[str, str]:
+def _register_and_login(client: TestClient, username: str | None = None, password: str = "password123") -> tuple[str, str]:  # noqa: E501
     """Register a user and log in, returning the access token and user ID."""
     if username is None:
         import time
@@ -54,7 +47,6 @@ def _auth_header(token: str) -> dict:
 
 def test_health_check(tmp_path: Path):
     """Test the health check endpoint returns 200 with status ok."""
-    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
@@ -80,7 +72,6 @@ def test_list_todos_empty(tmp_path: Path):
 
 def test_list_todos_with_data(tmp_path: Path):
     """Test listing todos returns the stored todos."""
-    from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
 
@@ -102,7 +93,6 @@ def test_list_todos_with_data(tmp_path: Path):
 
 def test_show_todo(tmp_path: Path):
     """Test showing a single todo by ID."""
-    from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
 
@@ -140,7 +130,7 @@ def test_add_todo(tmp_path: Path):
     token, _ = _register_and_login(client)
     response = client.post(
         "/api/v1/todos",
-        json={"title": "New todo", "description": "A new todo item", "due": "2027-12-31", "priority": "high"},
+        json={"title": "New todo", "description": "A new todo item", "due": "2027-12-31", "priority": "high"},  # noqa: E501
         headers=_auth_header(token),
     )
 
@@ -184,7 +174,6 @@ def test_add_todo_invalid_due_date(tmp_path: Path):
 
 def test_complete_todo(tmp_path: Path):
     """Test completing a todo."""
-    from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
 
@@ -195,7 +184,7 @@ def test_complete_todo(tmp_path: Path):
     todo.user_id = user_id
     storage.add(todo)
 
-    response = client.post(f"/api/v1/todos/{todo.id}/complete", headers=_auth_header(token))
+    response = client.post(f"/api/v1/todos/{todo.id}/complete", headers=_auth_header(token))  # noqa: E501
 
     assert response.status_code == 200
     data = response.json()
@@ -208,14 +197,13 @@ def test_complete_todo_not_found(tmp_path: Path):
     client = TestClient(app)
 
     token, _ = _register_and_login(client)
-    response = client.post("/api/v1/todos/non-existent-id/complete", headers=_auth_header(token))
+    response = client.post("/api/v1/todos/non-existent-id/complete", headers=_auth_header(token))  # noqa: E501
 
     assert response.status_code == 404
 
 
 def test_modify_todo(tmp_path: Path):
     """Test modifying a todo."""
-    from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
 
@@ -255,7 +243,6 @@ def test_modify_todo_not_found(tmp_path: Path):
 
 def test_delete_todo(tmp_path: Path):
     """Test deleting a todo."""
-    from snekdo.models import Todo
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
     todo = _make_todo()
 
@@ -279,7 +266,7 @@ def test_delete_todo_not_found(tmp_path: Path):
     client = TestClient(app)
 
     token, _ = _register_and_login(client)
-    response = client.delete("/api/v1/todos/non-existent-id", headers=_auth_header(token))
+    response = client.delete("/api/v1/todos/non-existent-id", headers=_auth_header(token))  # noqa: E501
 
     assert response.status_code == 404
 

@@ -6,8 +6,7 @@ Provides JWT token generation/validation and password hashing.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 try:
     import bcrypt
@@ -15,7 +14,7 @@ except ImportError:  # pragma: no cover
     bcrypt = None
 
 try:
-    from jose import jwt, JWTError
+    from jose import JWTError, jwt
 except ImportError:  # pragma: no cover
     jwt = None
     JWTError = Exception
@@ -62,7 +61,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     )
 
 
-def create_access_token(user_id: str, expires_minutes: int = TOKEN_EXPIRE_MINUTES) -> str:
+def create_access_token(
+    user_id: str, expires_minutes: int = TOKEN_EXPIRE_MINUTES
+) -> str:
     """Create a JWT access token.
 
     Args:
@@ -73,19 +74,21 @@ def create_access_token(user_id: str, expires_minutes: int = TOKEN_EXPIRE_MINUTE
         The encoded JWT token string.
     """
     if jwt is None:
-        raise RuntimeError("python-jose is not installed. Install with: pip install python-jose")
+        raise RuntimeError(
+            "python-jose is not installed. Install with: pip install python-jose"
+        )
 
-    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+    expire = datetime.now(UTC) + timedelta(minutes=expires_minutes)
     payload = {
         "sub": user_id,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
     return token
 
 
-def decode_access_token(token: str) -> Optional[str]:
+def decode_access_token(token: str) -> str | None:
     """Decode a JWT access token and return the user ID.
 
     Args:
@@ -95,7 +98,9 @@ def decode_access_token(token: str) -> Optional[str]:
         The user ID (sub claim) if valid, None otherwise.
     """
     if jwt is None:
-        raise RuntimeError("python-jose is not installed. Install with: pip install python-jose")
+        raise RuntimeError(
+            "python-jose is not installed. Install with: pip install python-jose"
+        )
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

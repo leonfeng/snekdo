@@ -4,26 +4,29 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from snekdo.api_auth import get_current_user, create_auth_router, get_current_user_factory
+from snekdo.api_auth import (
+    create_auth_router,
+    get_current_user,
+    get_current_user_factory,
+)
 from snekdo.models import Todo, User
 from snekdo.storage import StorageError, TodoStorage, UserStorage
-
 
 # ---------------------------------------------------------------------------
 # Pydantic request / response models
 # ---------------------------------------------------------------------------
+
 
 class TodoCreate(BaseModel):
     """Schema for creating a new todo."""
 
     title: str = Field(..., min_length=1, max_length=255)
     description: str = ""
-    due: Optional[str] = None
+    due: str | None = None
     priority: str = "medium"
 
     def to_todo(self) -> Todo:
@@ -41,10 +44,10 @@ class TodoCreate(BaseModel):
 class TodoUpdate(BaseModel):
     """Schema for updating an existing todo. All fields are optional."""
 
-    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = None
-    due: Optional[str] = None
-    priority: Optional[str] = None
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    due: str | None = None
+    priority: str | None = None
 
 
 class TodoResponse(BaseModel):
@@ -53,13 +56,13 @@ class TodoResponse(BaseModel):
     id: str
     title: str
     description: str
-    due: Optional[str]
+    due: str | None
     completed: bool
     created_at: str
     priority: str
 
     @classmethod
-    def from_todo(cls, todo: Todo) -> "TodoResponse":
+    def from_todo(cls, todo: Todo) -> TodoResponse:
         return cls(
             id=todo.id,
             title=todo.title,
@@ -86,8 +89,8 @@ class MessageResponse(BaseModel):
 class UserUpdate(BaseModel):
     """Schema for updating a user's profile. All fields are optional."""
 
-    display_name: Optional[str] = Field(default=None, max_length=100)
-    email: Optional[str] = None
+    display_name: str | None = Field(default=None, max_length=100)
+    email: str | None = None
 
 
 class PasswordChange(BaseModel):
@@ -108,7 +111,7 @@ class UserProfileResponse(BaseModel):
     created_at: str
 
     @classmethod
-    def from_user(cls, user: User) -> "UserProfileResponse":
+    def from_user(cls, user: User) -> UserProfileResponse:
         return cls(
             id=user.id,
             username=user.username,
@@ -122,12 +125,13 @@ class UserProfileResponse(BaseModel):
 # Dependency
 # ---------------------------------------------------------------------------
 
-def get_storage(storage_path: Optional[str] = None) -> TodoStorage:
+
+def get_storage(storage_path: str | None = None) -> TodoStorage:
     """Dependency that provides a :class:`TodoStorage` instance."""
     return TodoStorage(storage_path=storage_path)
 
 
-def _derive_users_path(storage_path: Optional[str] = None) -> str:
+def _derive_users_path(storage_path: str | None = None) -> str:
     """Derive the users JSON file path from the todos storage path."""
     if storage_path is None:
         return str(Path.home() / ".snekdo" / "users.json")
@@ -141,7 +145,8 @@ def _derive_users_path(storage_path: Optional[str] = None) -> str:
 # App factory
 # ---------------------------------------------------------------------------
 
-def create_app(storage_path: Optional[str] = None) -> FastAPI:
+
+def create_app(storage_path: str | None = None) -> FastAPI:
     """Create the FastAPI application.
 
     Args:
@@ -158,7 +163,9 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
         return get_storage(storage_path)
 
     # Override the default get_current_user to use the correct storage path
-    app.dependency_overrides[get_current_user] = get_current_user_factory(storage_path=storage_path)
+    app.dependency_overrides[get_current_user] = get_current_user_factory(
+        storage_path=storage_path
+    )
 
     # Include authentication routes (public)
     app.include_router(create_auth_router(storage_path=storage_path))
@@ -193,7 +200,9 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
         current_user: User = Depends(get_current_user),
     ) -> UserProfileResponse:
         """Update the current authenticated user's profile."""
-        display_name = update_data.display_name if update_data.display_name is not None else None
+        display_name = (
+            update_data.display_name if update_data.display_name is not None else None
+        )
         email = update_data.email if update_data.email is not None else None
 
         success = user_storage.update_profile(
@@ -253,11 +262,13 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
     async def list_todos(
         storage: TodoStorage = Depends(_storage),
         current_user: User = Depends(get_current_user),
-        status: Optional[str] = Query(default=None, enum=["all", "pending", "completed"]),
-        priority: Optional[str] = Query(default=None, enum=["low", "medium", "high"]),
-        sort: Optional[str] = Query(default="created_at", enum=["created_at", "title", "priority", "completed"]),
+        status: str | None = Query(default=None, enum=["all", "pending", "completed"]),
+        priority: str | None = Query(default=None, enum=["low", "medium", "high"]),
+        sort: str | None = Query(
+            default="created_at", enum=["created_at", "title", "priority", "completed"]
+        ),
         reverse: bool = False,
-        limit: Optional[int] = Query(default=None, ge=1),
+        limit: int | None = Query(default=None, ge=1),
     ) -> list[TodoResponse]:
         """List all todos, optionally filtered and sorted."""
         todos = storage.load(user_id=current_user.id)
@@ -273,12 +284,20 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
         valid_sort_fields = {"created_at", "title", "priority", "completed"}
         if sort in valid_sort_fields:
             if sort == "created_at":
-                todos = sorted(todos, key=lambda x: _parse_created_at(x.created_at), reverse=reverse)
+                todos = sorted(
+                    todos,
+                    key=lambda x: _parse_created_at(x.created_at),
+                    reverse=reverse,
+                )
             elif sort == "title":
                 todos = sorted(todos, key=lambda x: x.title.lower(), reverse=reverse)
             elif sort == "priority":
                 priority_order = {"high": 0, "medium": 1, "low": 2}
-                todos = sorted(todos, key=lambda x: priority_order.get(x.priority, 1), reverse=reverse)
+                todos = sorted(
+                    todos,
+                    key=lambda x: priority_order.get(x.priority, 1),
+                    reverse=reverse,
+                )
             elif sort == "completed":
                 todos = sorted(todos, key=lambda x: x.completed, reverse=reverse)
 
@@ -296,7 +315,9 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
         """Show a single todo by ID."""
         todo = storage.get(todo_id, user_id=current_user.id)
         if todo is None:
-            raise HTTPException(status_code=404, detail=f"Todo with ID '{todo_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Todo with ID '{todo_id}' not found"
+            )
         return TodoResponse.from_todo(todo)
 
     @app.post("/api/v1/todos", response_model=TodoResponse, status_code=201)
@@ -325,7 +346,9 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
         """Mark a todo as complete."""
         todo = storage.get(todo_id, user_id=current_user.id)
         if todo is None:
-            raise HTTPException(status_code=404, detail=f"Todo with ID '{todo_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Todo with ID '{todo_id}' not found"
+            )
         storage.complete(todo_id)
         todo.completed = True
         return TodoResponse.from_todo(todo)
@@ -340,7 +363,9 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
         """Modify an existing todo."""
         todo = storage.get(todo_id, user_id=current_user.id)
         if todo is None:
-            raise HTTPException(status_code=404, detail=f"Todo with ID '{todo_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Todo with ID '{todo_id}' not found"
+            )
 
         update_dict = {}
         if update_data.title is not None:
@@ -371,7 +396,9 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
         """Delete a todo."""
         todo = storage.get(todo_id, user_id=current_user.id)
         if todo is None:
-            raise HTTPException(status_code=404, detail=f"Todo with ID '{todo_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Todo with ID '{todo_id}' not found"
+            )
         storage.delete(todo_id)
         return MessageResponse(message=f"Deleted todo: {todo.title}")
 
@@ -381,6 +408,7 @@ def create_app(storage_path: Optional[str] = None) -> FastAPI:
 # ---------------------------------------------------------------------------
 # Helpers (mirroring __main__.py)
 # ---------------------------------------------------------------------------
+
 
 def _validate_due_date(due_date: str) -> str:
     """Validate a due date string (YYYY-MM-DD format)."""
@@ -392,7 +420,10 @@ def _validate_due_date(due_date: str) -> str:
             raise ValueError(f"Due date '{due_date}' cannot be in the past")
         return due_date
     except ValueError:
-        raise ValueError(f"Invalid due date format: '{due_date}'. Use YYYY-MM-DD format and a future date")
+        raise ValueError(
+            f"Invalid due date format: '{due_date}'. "
+            f"Use YYYY-MM-DD format and a future date"
+        )
 
 
 def _parse_created_at(created_at: str) -> datetime:

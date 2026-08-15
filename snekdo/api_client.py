@@ -6,7 +6,6 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 
 class SyncSummary:
@@ -33,11 +32,12 @@ class SyncSummary:
 CREDENTIALS_PATH = Path.home() / ".snekdo" / "credentials.json"
 
 
-def _read_credentials(credentials_path: Optional[Path] = None) -> Optional[dict]:
+def _read_credentials(credentials_path: Path | None = None) -> dict | None:
     """Read the stored credentials from disk.
 
     Args:
-        credentials_path: Path to the credentials file. Defaults to ``~/.snekdo/credentials.json``.
+        credentials_path: Path to the credentials file.
+        Defaults to ``~/.snekdo/credentials.json``.
 
     Returns:
         The credentials dict with ``access_token`` and ``token_type``,
@@ -47,7 +47,7 @@ def _read_credentials(credentials_path: Optional[Path] = None) -> Optional[dict]
         credentials_path = CREDENTIALS_PATH
     if not credentials_path.exists():
         return None
-    with open(credentials_path, "r") as f:
+    with open(credentials_path) as f:
         return json.load(f)
 
 
@@ -70,8 +70,8 @@ class ServerHttpClient:
         self,
         method: str,
         path: str,
-        data: Optional[dict] = None,
-        credentials_path: Optional[Path] = None,
+        data: dict | None = None,
+        credentials_path: Path | None = None,
     ) -> dict:
         """Send an HTTP request to the server.
 
@@ -125,17 +125,16 @@ class ServerHttpClient:
             body_text = e.read().decode("utf-8") if e.readable() else ""
             if e.code in (401, 403):
                 raise AuthenticationError(
-                    f"Authentication failed: {e.code} {'Unauthorized' if e.code == 401 else 'Forbidden'}"
+                    f"Authentication failed: {e.code} "
+                    f"{'Unauthorized' if e.code == 401 else 'Forbidden'}"
                 ) from e
-            raise ServerError(
-                f"Server returned status {e.code}: {body_text}"
-            ) from e
+            raise ServerError(f"Server returned status {e.code}: {body_text}") from e
         except urllib.error.URLError as e:
             raise ConnectionError(f"Failed to connect to server: {e}") from e
         except Exception as e:
             raise ConnectionError(f"Connection error: {e}") from e
 
-    def get_todos(self, credentials_path: Optional[Path] = None) -> list[dict]:
+    def get_todos(self, credentials_path: Path | None = None) -> list[dict]:
         """Fetch all todos from the server.
 
         Args:
@@ -146,7 +145,7 @@ class ServerHttpClient:
         """
         return self._request("GET", "/api/v1/todos", credentials_path=credentials_path)
 
-    def get_todo(self, todo_id: str, credentials_path: Optional[Path] = None) -> dict:
+    def get_todo(self, todo_id: str, credentials_path: Path | None = None) -> dict:
         """Fetch a single todo by ID.
 
         Args:
@@ -163,7 +162,14 @@ class ServerHttpClient:
             "GET", f"/api/v1/todos/{todo_id}", credentials_path=credentials_path
         )
 
-    def create_todo(self, title: str, description: str = "", due: Optional[str] = None, priority: str = "medium", credentials_path: Optional[Path] = None) -> dict:
+    def create_todo(
+        self,
+        title: str,
+        description: str = "",
+        due: str | None = None,
+        priority: str = "medium",
+        credentials_path: Path | None = None,
+    ) -> dict:
         """Create a new todo on the server.
 
         Args:
@@ -179,9 +185,19 @@ class ServerHttpClient:
         data: dict = {"title": title, "description": description, "priority": priority}
         if due:
             data["due"] = due
-        return self._request("POST", "/api/v1/todos", data=data, credentials_path=credentials_path)
+        return self._request(
+            "POST", "/api/v1/todos", data=data, credentials_path=credentials_path
+        )
 
-    def update_todo(self, todo_id: str, title: Optional[str] = None, description: Optional[str] = None, due: Optional[str] = None, priority: Optional[str] = None, credentials_path: Optional[Path] = None) -> dict:
+    def update_todo(
+        self,
+        todo_id: str,
+        title: str | None = None,
+        description: str | None = None,
+        due: str | None = None,
+        priority: str | None = None,
+        credentials_path: Path | None = None,
+    ) -> dict:
         """Update an existing todo on the server.
 
         Args:
@@ -205,10 +221,13 @@ class ServerHttpClient:
         if priority is not None:
             data["priority"] = priority
         return self._request(
-            "PUT", f"/api/v1/todos/{todo_id}", data=data, credentials_path=credentials_path
+            "PUT",
+            f"/api/v1/todos/{todo_id}",
+            data=data,
+            credentials_path=credentials_path,
         )
 
-    def delete_todo(self, todo_id: str, credentials_path: Optional[Path] = None) -> dict:
+    def delete_todo(self, todo_id: str, credentials_path: Path | None = None) -> dict:
         """Delete a todo on the server.
 
         Args:
@@ -218,9 +237,11 @@ class ServerHttpClient:
         Returns:
             The message response dict.
         """
-        return self._request("DELETE", f"/api/v1/todos/{todo_id}", credentials_path=credentials_path)
+        return self._request(
+            "DELETE", f"/api/v1/todos/{todo_id}", credentials_path=credentials_path
+        )
 
-    def complete_todo(self, todo_id: str, credentials_path: Optional[Path] = None) -> dict:
+    def complete_todo(self, todo_id: str, credentials_path: Path | None = None) -> dict:
         """Mark a todo as complete on the server.
 
         Args:
@@ -231,10 +252,12 @@ class ServerHttpClient:
             The updated todo dict.
         """
         return self._request(
-            "POST", f"/api/v1/todos/{todo_id}/complete", credentials_path=credentials_path
+            "POST",
+            f"/api/v1/todos/{todo_id}/complete",
+            credentials_path=credentials_path,
         )
 
-    def get_profile(self, credentials_path: Optional[Path] = None) -> dict:
+    def get_profile(self, credentials_path: Path | None = None) -> dict:
         """Get the current user's profile.
 
         Args:
@@ -243,9 +266,16 @@ class ServerHttpClient:
         Returns:
             The user profile dict.
         """
-        return self._request("GET", "/api/v1/users/me", credentials_path=credentials_path)
+        return self._request(
+            "GET", "/api/v1/users/me", credentials_path=credentials_path
+        )
 
-    def update_profile(self, display_name: Optional[str] = None, email: Optional[str] = None, credentials_path: Optional[Path] = None) -> dict:
+    def update_profile(
+        self,
+        display_name: str | None = None,
+        email: str | None = None,
+        credentials_path: Path | None = None,
+    ) -> dict:
         """Update the current user's profile.
 
         Args:
@@ -261,9 +291,17 @@ class ServerHttpClient:
             data["display_name"] = display_name
         if email is not None:
             data["email"] = email
-        return self._request("PUT", "/api/v1/users/me", data=data, credentials_path=credentials_path)
+        return self._request(
+            "PUT", "/api/v1/users/me", data=data, credentials_path=credentials_path
+        )
 
-    def change_password(self, current_password: str, new_password: str, confirm_password: str, credentials_path: Optional[Path] = None) -> dict:
+    def change_password(
+        self,
+        current_password: str,
+        new_password: str,
+        confirm_password: str,
+        credentials_path: Path | None = None,
+    ) -> dict:
         """Change the current user's password.
 
         Args:
@@ -280,7 +318,12 @@ class ServerHttpClient:
             "new_password": new_password,
             "confirm_password": confirm_password,
         }
-        return self._request("PUT", "/api/v1/users/me/password", data=data, credentials_path=credentials_path)
+        return self._request(
+            "PUT",
+            "/api/v1/users/me/password",
+            data=data,
+            credentials_path=credentials_path,
+        )
 
 
 class ServerError(Exception):

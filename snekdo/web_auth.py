@@ -4,23 +4,19 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from snekdo.api_auth import (
     UserCreate,
-    UserLogin,
-    UserResponse,
     get_current_user,
 )
-from snekdo.auth import decode_access_token
 from snekdo.models import User
 from snekdo.storage import StorageError, UserStorage
 
 
-def get_user_storage(storage_path: Optional[str] = None) -> UserStorage:
+def get_user_storage(storage_path: str | None = None) -> UserStorage:
     """Dependency that provides a :class:`UserStorage` instance."""
     if storage_path is None:
         return UserStorage()
@@ -32,13 +28,13 @@ def get_user_storage(storage_path: Optional[str] = None) -> UserStorage:
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
-def _render(request: Request, template_name: str, **context) -> "Response":
+def _render(request: Request, template_name: str, **context) -> Response:
     """Render a Jinja2 template and return an HTML response."""
     template = request.app.state.template_env.get_template(template_name)
     return Response(template.render(**context), media_type="text/html")
 
 
-def register_web_routes(router: APIRouter, storage_path: Optional[str] = None) -> None:
+def register_web_routes(router: APIRouter, storage_path: str | None = None) -> None:
     """Register authentication web routes with the given router.
 
     Args:
@@ -92,7 +88,9 @@ def register_web_routes(router: APIRouter, storage_path: Optional[str] = None) -
         """Handle login submission."""
         user = user_storage.get(username)
         if user is None or not _verify_password(password, user.password_hash):
-            return _render(request, "login.html", error="Incorrect username or password")
+            return _render(
+                request, "login.html", error="Incorrect username or password"
+            )
 
         token = _create_access_token(user.id)
         response = RedirectResponse(url="/", status_code=303)
@@ -129,19 +127,23 @@ def register_web_routes(router: APIRouter, storage_path: Optional[str] = None) -
 # Helper functions (kept private to avoid exposing auth internals)
 # ---------------------------------------------------------------------------
 
+
 def _hash_password(password: str) -> str:
     """Hash a password using bcrypt."""
     from snekdo.auth import hash_password
+
     return hash_password(password)
 
 
 def _verify_password(password: str, password_hash: str) -> bool:
     """Verify a password against a hash."""
     from snekdo.auth import verify_password
+
     return verify_password(password, password_hash)
 
 
 def _create_access_token(user_id: str) -> str:
     """Create a JWT access token."""
     from snekdo.auth import create_access_token
+
     return create_access_token(user_id)

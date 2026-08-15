@@ -1,20 +1,17 @@
 """Tests for authentication and per-user isolation."""
 
 import json
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
 
 from fastapi.testclient import TestClient
 
 from snekdo.api import create_app
-from snekdo.api_client import ServerHttpClient
-from snekdo.auth import create_access_token, decode_access_token, hash_password, verify_password
-from snekdo.models import Todo, User
-from snekdo.storage import TodoStorage, UserStorage
-
+from snekdo.auth import (
+    create_access_token,
+    decode_access_token,
+    hash_password,
+    verify_password,
+)
 
 # ---------------------------------------------------------------------------
 # Auth utilities
@@ -293,14 +290,11 @@ def test_user_cannot_modify_another_users_todo(tmp_path: Path):
 
 def test_sync_client_includes_token(tmp_path: Path):
     """Test that the sync client includes the token in requests."""
-    storage_path = str(tmp_path / "todos.json")
     credentials_path = tmp_path / "credentials.json"
     credentials_path.write_text(json.dumps({
         "access_token": "test-token",
         "token_type": "bearer",
     }))
-
-    client = ServerHttpClient(base_url="http://127.0.0.1:8000")
 
     # We can't actually make a request to the server, but we can verify
     # that the credentials are read correctly
