@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, List, Optional
 
 from snekdo.models import Todo
+
+logger = logging.getLogger(__name__)
 
 try:
     import fcntl
@@ -53,12 +56,22 @@ class TodoStorage:
     def load(self) -> List[Todo]:
         """Load all todos from the JSON file.
 
-        Returns an empty list if the file does not exist.
+        Returns an empty list if the file does not exist or if the JSON is
+        corrupted.  In the latter case a warning is logged so the API keeps
+        working even with a bad storage file.
         """
         if not self.storage_path.exists():
             return []
-        with self._open_file(self.storage_path, "r") as f:
-            data = json.load(f)
+        try:
+            with self._open_file(self.storage_path, "r") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            logger.warning(
+                "Storage file %s is corrupted (%s). Returning empty list.",
+                self.storage_path,
+                e,
+            )
+            return []
         return [Todo.from_dict(todo) for todo in data]
 
     def save(self, todos: List[Todo]) -> None:
