@@ -279,12 +279,18 @@ def create_parser() -> argparse.ArgumentParser:
     # Profile command
     profile_parser = subparsers.add_parser("profile", help="View your profile")
     profile_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    profile_parser.add_argument(
         "--storage", help="Path to the storage file", default=argparse.SUPPRESS
     )
 
     # Profile update command
     profile_update_parser = subparsers.add_parser(
         "profile-update", help="Update your profile"
+    )
+    profile_update_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
     )
     profile_update_parser.add_argument(
         "--display-name", default=None, help="New display name"
@@ -297,6 +303,9 @@ def create_parser() -> argparse.ArgumentParser:
     # Change password command
     change_password_parser = subparsers.add_parser(
         "change-password", help="Change your password"
+    )
+    change_password_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
     )
     change_password_parser.add_argument(
         "--current-password", required=True, help="Current password"
@@ -314,6 +323,9 @@ def create_parser() -> argparse.ArgumentParser:
     # Delete account command
     delete_account_parser = subparsers.add_parser(
         "delete-account", help="Delete your account on the server"
+    )
+    delete_account_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
     )
     delete_account_parser.add_argument(
         "--password", required=True, help="Your current password"
@@ -719,7 +731,7 @@ def handle_profile(args, parser) -> int:
     """Handle the profile command by fetching the current user's profile."""
     storage_path = _get_storage_path(args)
     credentials_path = _get_credentials_path(storage_path)
-    client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+    client = ServerHttpClient(base_url=args.server)
 
     try:
         profile = client.get_profile(credentials_path=credentials_path)
@@ -746,7 +758,7 @@ def handle_profile_update(args, parser) -> int:
     """Handle the profile-update command by updating the current user's profile."""
     storage_path = _get_storage_path(args)
     credentials_path = _get_credentials_path(storage_path)
-    client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+    client = ServerHttpClient(base_url=args.server)
 
     try:
         response = client.update_profile(
@@ -775,7 +787,7 @@ def handle_change_password(args, parser) -> int:
     """Handle the change-password command by changing the current user's password."""
     storage_path = _get_storage_path(args)
     credentials_path = _get_credentials_path(storage_path)
-    client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+    client = ServerHttpClient(base_url=args.server)
 
     try:
         response = client.change_password(
@@ -803,7 +815,7 @@ def handle_delete_account(args, parser) -> int:
     """Handle the delete-account command by deleting the current user's account."""
     storage_path = _get_storage_path(args)
     credentials_path = _get_credentials_path(storage_path)
-    client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+    client = ServerHttpClient(base_url=args.server)
 
     try:
         client.delete_account(

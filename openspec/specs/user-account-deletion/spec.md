@@ -120,6 +120,20 @@ The system SHALL provide a `snekdo delete-account` subcommand that deletes the c
 - **WHEN** a user runs `snekdo delete-account` without stored credentials
 - **THEN** an authentication error is printed
 
+### Requirement: CLI delete-account command accepts server URL
+
+The system SHALL provide a `snekdo delete-account` subcommand that accepts a `--server` flag specifying the server base URL.
+
+#### Scenario: Delete account uses default server
+
+- **WHEN** a user runs `snekdo delete-account --password <password>` without `--server`
+- **THEN** the system connects to `http://127.0.0.1:8000`
+
+#### Scenario: Delete account uses custom server
+
+- **WHEN** a user runs `snekdo delete-account --password <password> --server http://localhost:9000`
+- **THEN** the system connects to `http://localhost:9000`
+
 ### Requirement: Delete account option on profile page
 
 The system SHALL provide a delete account option on the authenticated user's profile page.

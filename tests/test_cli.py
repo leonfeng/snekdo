@@ -1286,6 +1286,97 @@ class TestProfileCLI:
             assert "New Name" in output_str
             assert "new@example.com" in output_str
 
+    def test_profile_command_uses_server(self, tmp_path):
+        """Test the profile command passes --server to ServerHttpClient."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        credentials_file = tmp_path / "credentials.json"
+        credentials_file.write_text(json.dumps({
+            "access_token": "test-token",
+            "token_type": "bearer",
+        }))
+
+        args = mock.MagicMock()
+        args.command = "profile"
+        args.server = "http://localhost:9000"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.ServerHttpClient') as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.get_profile.return_value = {
+                "id": "1",
+                "username": "testuser",
+                "display_name": "Test User",
+                "email": "test@example.com",
+                "created_at": "2024-01-01T00:00:00",
+            }
+
+            result = handle_profile(args, None)
+
+            mock_client.assert_called_once_with(base_url="http://localhost:9000")
+            assert result == 0
+
+    def test_profile_update_command_uses_server(self, tmp_path):
+        """Test the profile-update command passes --server to ServerHttpClient."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        credentials_file = tmp_path / "credentials.json"
+        credentials_file.write_text(json.dumps({
+            "access_token": "test-token",
+            "token_type": "bearer",
+        }))
+
+        args = mock.MagicMock()
+        args.command = "profile-update"
+        args.server = "http://localhost:9000"
+        args.display_name = "New Name"
+        args.email = "new@example.com"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.ServerHttpClient') as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.update_profile.return_value = {
+                "id": "1",
+                "username": "testuser",
+                "display_name": "New Name",
+                "email": "new@example.com",
+                "created_at": "2024-01-01T00:00:00",
+            }
+
+            result = handle_profile_update(args, None)
+
+            mock_client.assert_called_once_with(base_url="http://localhost:9000")
+            assert result == 0
+
+    def test_change_password_command_uses_server(self, tmp_path):
+        """Test the change-password command passes --server to ServerHttpClient."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        credentials_file = tmp_path / "credentials.json"
+        credentials_file.write_text(json.dumps({
+            "access_token": "test-token",
+            "token_type": "bearer",
+        }))
+
+        args = mock.MagicMock()
+        args.command = "change-password"
+        args.server = "http://localhost:9000"
+        args.current_password = "oldpass"
+        args.new_password = "newpass"
+        args.confirm_password = "newpass"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.ServerHttpClient') as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.change_password.return_value = {
+                "message": "Password changed successfully"
+            }
+
+            result = handle_change_password(args, None)
+
+            mock_client.assert_called_once_with(base_url="http://localhost:9000")
+            assert result == 0
+
     def test_change_password_command(self, tmp_path):
         """Test the change-password command."""
         storage_file = tmp_path / "todos.json"
@@ -2726,13 +2817,14 @@ class TestSyncCommand:
 class TestDeleteAccount:
     """Tests for the delete-account CLI command."""
 
-    def _make_args(self, storage: str | None = None, password: str = "password123"):
+    def _make_args(self, storage: str | None = None, password: str = "password123", server: str = "http://127.0.0.1:8000"):
         """Create args for the delete-account command."""
         import argparse
         args = argparse.Namespace(
             command="delete-account",
             password=password,
             storage=storage,
+            server=server,
         )
         return args
 
@@ -2808,6 +2900,7 @@ class TestDeleteAccount:
         args = parser.parse_args(["delete-account", "--password", "password123"])
         assert args.command == "delete-account"
         assert args.password == "password123"
+        assert args.server == "http://127.0.0.1:8000"
 
     def test_delete_account_parser_with_storage(self):
         """Test that the delete-account subcommand accepts --storage."""
@@ -2826,3 +2919,119 @@ class TestDeleteAccount:
         assert args.command == "delete-account"
         assert args.password == "password123"
         assert args.storage == "/tmp/test.json"
+
+    def test_delete_account_parser_with_server(self):
+        """Test that the delete-account subcommand accepts --server."""
+        from snekdo.__main__ import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(
+            [
+                "delete-account",
+                "--password",
+                "password123",
+                "--server",
+                "http://localhost:9000",
+            ]
+        )
+        assert args.command == "delete-account"
+        assert args.password == "password123"
+        assert args.server == "http://localhost:9000"
+
+    def test_delete_account_uses_server(self, tmp_path):
+        """Test that delete-account passes --server to ServerHttpClient."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = self._make_args(
+            storage=str(storage_file), server="http://localhost:9000"
+        )
+
+        from snekdo.__main__ import handle_delete_account
+
+        with patch(
+            "snekdo.__main__.ServerHttpClient"
+        ) as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.delete_account.return_value = {
+                "message": "Account deleted successfully"
+            }
+            mock_client_class.return_value = mock_client
+
+            result = handle_delete_account(args, None)
+
+            mock_client_class.assert_called_once_with(
+                base_url="http://localhost:9000"
+            )
+            assert result == 0
+
+    def test_profile_parser(self):
+        """Test that the profile subcommand is parsed correctly."""
+        from snekdo.__main__ import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(["profile"])
+        assert args.command == "profile"
+        assert args.server == "http://127.0.0.1:8000"
+
+    def test_profile_parser_with_server(self):
+        """Test that the profile subcommand accepts --server."""
+        from snekdo.__main__ import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(["profile", "--server", "http://localhost:9000"])
+        assert args.command == "profile"
+        assert args.server == "http://localhost:9000"
+
+    def test_profile_update_parser(self):
+        """Test that the profile-update subcommand is parsed correctly."""
+        from snekdo.__main__ import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(["profile-update", "--display-name", "New Name"])
+        assert args.command == "profile-update"
+        assert args.server == "http://127.0.0.1:8000"
+
+    def test_profile_update_parser_with_server(self):
+        """Test that the profile-update subcommand accepts --server."""
+        from snekdo.__main__ import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(
+            ["profile-update", "--display-name", "New Name", "--server", "http://localhost:9000"]
+        )
+        assert args.command == "profile-update"
+        assert args.server == "http://localhost:9000"
+
+    def test_change_password_parser(self):
+        """Test that the change-password subcommand is parsed correctly."""
+        from snekdo.__main__ import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(
+            [
+                "change-password",
+                "--current-password", "old",
+                "--new-password", "new",
+                "--confirm-password", "new",
+            ]
+        )
+        assert args.command == "change-password"
+        assert args.server == "http://127.0.0.1:8000"
+
+    def test_change_password_parser_with_server(self):
+        """Test that the change-password subcommand accepts --server."""
+        from snekdo.__main__ import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(
+            [
+                "change-password",
+                "--current-password", "old",
+                "--new-password", "new",
+                "--confirm-password", "new",
+                "--server", "http://localhost:9000",
+            ]
+        )
+        assert args.command == "change-password"
+        assert args.server == "http://localhost:9000"
