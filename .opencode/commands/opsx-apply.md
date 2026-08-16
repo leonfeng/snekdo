@@ -4,7 +4,7 @@ description: "Implement tasks from an OpenSpec change (Experimental)"
 
 Implement tasks from an OpenSpec change.
 
-**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Input**: Optionally specify a change name (e.g., `/opsx-apply add-auth`). If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
@@ -18,6 +18,10 @@ Implement tasks from an OpenSpec change.
    - If ambiguous, run `openspec list --json` to get available changes and ask the user to select one
 
    Always announce: "Using change: <name>" and how to override (e.g., `/opsx-apply <other>`).
+
+   **Change, not spec:** `/opsx-apply` implements a **change** — every remaining task in that change. Specs/capabilities are not independently applyable. If the user named a spec or capability, or asked to implement only one slice of a multi-capability change:
+   - If an active change with that exact name exists, use it.
+   - Otherwise do **not** resolve the name to a parent change and implement everything. Stop, list matching changes, and suggest `/opsx-split` to turn the parent into independently applyable changes. If `/opsx-split` is not installed, explain that independently applyable slices require separate changes and offer `/opsx-propose` for each slice.
 
 2. **Check status to understand the schema**
    ```bash
@@ -97,6 +101,7 @@ Implement tasks from an OpenSpec change.
    **Pause if:**
    - Task is unclear → ask for clarification
    - Implementation reveals a design issue → suggest updating artifacts
+   - A task needs work beyond what the spec and tasks describe, or you are tempted to drop, narrow, defer, or accept exceptions to specified behavior to make it fit → surface the added scope and ask; do not absorb it silently
    - Error or blocker encountered → report and wait for guidance
    - User interrupts
 
@@ -161,6 +166,7 @@ What would you like to do?
 
 **Guardrails**
 - Keep going through tasks until done or blocked
+- Apply implements a change, not a spec: if the user named a capability or asked for one slice, stop and suggest `/opsx-split` instead of implementing the parent change
 - Always read context files before starting (from the apply instructions output)
 - If task is ambiguous, pause and ask before implementing
 - If implementation reveals issues, pause and suggest artifact updates
@@ -175,6 +181,8 @@ What would you like to do?
 - After marking tasks, re-run apply instructions and continue from the returned remaining list
 - Prefer editing an existing file over rewriting it in full
 - Pause on errors, blockers, or unclear requirements - don't guess
+- When a task needs work beyond what the spec describes, surface the added scope and pause - never silently narrow, defer, or simplify away specified behavior
+- Only mark a task `- [x]` when its specified behavior is fully implemented, not when it is partially done or deferred
 - Use contextFiles from CLI output, don't assume specific file names
 - Do not use context or operation guidance as proof that a task is complete
 - Apply relevant project context; report conflicts with controlling workflow inputs
