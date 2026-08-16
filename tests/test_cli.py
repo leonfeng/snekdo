@@ -20,6 +20,7 @@ from snekdo.__main__ import (
     handle_show,
     main,
 )
+from snekdo.api_client import AuthenticationError
 from snekdo.models import Todo
 
 
@@ -2720,3 +2721,108 @@ class TestSyncCommand:
 
             assert result == 0
             assert "Sync summary" in output.getvalue()
+
+
+class TestDeleteAccount:
+    """Tests for the delete-account CLI command."""
+
+    def _make_args(self, storage: str | None = None, password: str = "password123"):
+        """Create args for the delete-account command."""
+        import argparse
+        args = argparse.Namespace(
+            command="delete-account",
+            password=password,
+            storage=storage,
+        )
+        return args
+
+    def test_delete_account_success(self, tmp_path, monkeypatch):
+        """Test that delete-account removes credentials on success."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = self._make_args(storage=str(storage_file))
+
+        from snekdo.__main__ import handle_delete_account
+
+        with patch(
+            "snekdo.__main__.ServerHttpClient"
+        ) as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.delete_account.return_value = {
+                "message": "Account deleted successfully"
+            }
+            mock_client_class.return_value = mock_client
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *a, **k: output.write(str(a[0]) + "\n")
+
+                # Create a credentials file
+                credentials_file = tmp_path / "credentials.json"
+                credentials_file.write_text(
+                    json.dumps({"token": "test-token", "user_id": "user-123"})
+                )
+
+                with patch(
+                    "snekdo.__main__._get_credentials_path",
+                    return_value=credentials_file,
+                ):
+                    result = handle_delete_account(args, None)
+
+            assert result == 0
+            assert "Account deleted successfully" in output.getvalue()
+            assert not credentials_file.exists()
+
+    def test_delete_account_authentication_error(self, tmp_path):
+        """Test that delete-account handles authentication errors."""
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+
+        args = self._make_args(storage=str(storage_file), password="wrongpassword")
+
+        from snekdo.__main__ import handle_delete_account
+
+        with patch(
+            "snekdo.__main__.ServerHttpClient"
+        ) as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.delete_account.side_effect = AuthenticationError(
+                "Authentication error"
+            )
+            mock_client_class.return_value = mock_client
+
+            output = io.StringIO()
+            with patch("builtins.print", return_value=None) as mock_print:
+                mock_print.side_effect = lambda *a, **k: output.write(str(a[0]) + "\n")
+                result = handle_delete_account(args, None)
+
+            assert result == 1
+            assert "Authentication error" in output.getvalue()
+
+    def test_delete_account_parser(self):
+        """Test that the delete-account subcommand is parsed correctly."""
+        from snekdo.__main__ import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(["delete-account", "--password", "password123"])
+        assert args.command == "delete-account"
+        assert args.password == "password123"
+
+    def test_delete_account_parser_with_storage(self):
+        """Test that the delete-account subcommand accepts --storage."""
+        from snekdo.__main__ import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(
+            [
+                "delete-account",
+                "--password",
+                "password123",
+                "--storage",
+                "/tmp/test.json",
+            ]
+        )
+        assert args.command == "delete-account"
+        assert args.password == "password123"
+        assert args.storage == "/tmp/test.json"

@@ -495,3 +495,108 @@ def test_profile_isolation(tmp_path: Path):
     response = client.get("/api/v1/users/me", headers=_auth_header(token1))
     assert response.status_code == 200
     assert response.json()["display_name"] == "User One"
+
+
+def test_delete_account_success(tmp_path: Path):
+    """Test deleting an account with the correct password succeeds."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+
+    # Verify the user exists before deletion
+    response = client.get("/api/v1/users/me", headers=_auth_header(token))
+    assert response.status_code == 200
+
+    # Delete the account
+    response = client.request(
+        "DELETE",
+        "/api/v1/users/me",
+        json={"password": "password123"},
+        headers=_auth_header(token),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+    assert "deleted" in data["message"].lower()
+
+    # Verify the user no longer exists
+    response = client.get("/api/v1/users/me", headers=_auth_header(token))
+    assert response.status_code in (401, 403)
+
+
+def test_delete_account_wrong_password(tmp_path: Path):
+    """Test deleting an account with the wrong password returns 401."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+
+    response = client.request(
+        "DELETE",
+        "/api/v1/users/me",
+        json={"password": "wrongpassword"},
+        headers=_auth_header(token),
+    )
+    assert response.status_code == 401
+
+
+def test_delete_account_missing_password(tmp_path: Path):
+    """Test deleting an account without a password returns 422."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+
+    response = client.request(
+        "DELETE",
+        "/api/v1/users/me",
+        json={"password": ""},
+        headers=_auth_header(token),
+    )
+    assert response.status_code == 422
+
+
+def test_delete_account_no_token(tmp_path: Path):
+    """Test deleting an account without a token returns 401."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+
+    response = client.request(
+        "DELETE",
+        "/api/v1/users/me",
+        json={"password": "password123"},
+    )
+    assert response.status_code == 401
+
+
+def test_delete_account_cascades_to_todos(tmp_path: Path):
+    """Test that deleting a user also deletes their todos."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+
+    # Create a todo belonging to the user
+    todo = _make_todo()
+    todo.user_id = user_id
+    storage = TodoStorage(storage_path=storage_path)
+    storage.add(todo)
+
+    # Delete the account
+    response = client.request(
+        "DELETE",
+        "/api/v1/users/me",
+        json={"password": "password123"},
+        headers=_auth_header(token),
+    )
+    assert response.status_code == 200
+
+    # Verify the todo is deleted
+    todos = storage.get_all()
+    assert len(todos) == 0

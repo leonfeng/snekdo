@@ -133,6 +133,16 @@ class TodoStorage:
         self.save(todos)
         return True
 
+    def delete_all_user_todos(self, user_id: str) -> None:
+        """Remove all todos belonging to a user and persist the remaining todos.
+
+        Args:
+            user_id: The ID of the user whose todos should be removed.
+        """
+        todos = self.load()
+        remaining = [t for t in todos if t.user_id != user_id]
+        self.save(remaining)
+
     def complete(self, todo_id: str, user_id: str | None = None) -> bool:
         """Mark a todo as complete by ID.
 
@@ -308,6 +318,23 @@ class UserStorage:
         users = self.load()
         before = len(users)
         users = [u for u in users if u.username != username]
+        if len(users) == before:
+            return False
+        self.save(users)
+        return True
+
+    def delete_user(self, user_id: str) -> bool:
+        """Remove a user by ID and persist the remaining users.
+
+        Args:
+            user_id: The ID of the user to delete.
+
+        Returns:
+            True if the user was found and deleted, False otherwise.
+        """
+        users = self.load()
+        before = len(users)
+        users = [u for u in users if u.id != user_id]
         if len(users) == before:
             return False
         self.save(users)

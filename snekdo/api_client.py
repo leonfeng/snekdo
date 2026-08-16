@@ -325,6 +325,26 @@ class ServerHttpClient:
             credentials_path=credentials_path,
         )
 
+    def delete_account(
+        self, password: str, credentials_path: Path | None = None
+    ) -> dict:
+        """Delete the current user's account.
+
+        Args:
+            password: The user's current password for confirmation.
+            credentials_path: Optional path to the credentials file.
+
+        Returns:
+            The message response dict.
+
+        Raises:
+            AuthenticationError: If the password is incorrect.
+        """
+        data = {"password": password}
+        return self._request(
+            "DELETE", "/api/v1/users/me", data=data, credentials_path=credentials_path
+        )
+
 
 class ServerError(Exception):
     """Raised when the server returns an error response."""

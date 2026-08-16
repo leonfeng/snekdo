@@ -13,6 +13,7 @@ from snekdo.api_auth import (
     get_current_user,
     get_current_user_factory,
 )
+from snekdo.auth import verify_password
 from snekdo.models import Todo, User
 from snekdo.storage import StorageError, TodoStorage, UserStorage
 
@@ -99,6 +100,12 @@ class PasswordChange(BaseModel):
     current_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8, max_length=128)
     confirm_password: str = Field(..., min_length=8, max_length=128)
+
+
+class UserDeleteConfirm(BaseModel):
+    """Schema for confirming account deletion."""
+
+    password: str = Field(..., min_length=1)
 
 
 class UserProfileResponse(BaseModel):
@@ -257,6 +264,38 @@ def create_app(storage_path: str | None = None) -> FastAPI:
             )
 
         return MessageResponse(message="Password updated successfully")
+
+    @app.delete("/api/v1/users/me", response_model=MessageResponse)
+    async def delete_user_account(
+        delete_data: UserDeleteConfirm,
+        user_storage: UserStorage = Depends(_get_user_storage),
+        todo_storage: TodoStorage = Depends(_storage),
+        current_user: User = Depends(get_current_user),
+    ) -> MessageResponse:
+        """Delete the current authenticated user's account.
+
+        Verifies the user's password, deletes all todos belonging to the user,
+        and removes the user record.
+        """
+        # Verify the user's password
+        if not verify_password(delete_data.password, current_user.password_hash):
+            raise HTTPException(
+                status_code=401,
+                detail="Incorrect password",
+            )
+
+        # Delete all todos belonging to the user
+        todo_storage.delete_all_user_todos(current_user.id)
+
+        # Delete the user
+        success = user_storage.delete_user(current_user.id)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to delete user account",
+            )
+
+        return MessageResponse(message="Account deleted successfully")
 
     @app.get("/api/v1/todos", response_model=list[TodoResponse])
     async def list_todos(

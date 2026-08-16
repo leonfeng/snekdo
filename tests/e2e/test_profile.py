@@ -14,7 +14,7 @@ async def _get_text(page):
 async def _htmx_submit(page, form_selector, hx_post_url, fill_values):
     """Fill form fields and submit via HTMX fetch request."""
     for name, value in fill_values.items():
-        await page.locator(f'input[name="{name}"]').fill(value)
+        await page.locator(f'{form_selector} input[name="{name}"]').fill(value)
     await page.evaluate(
         '(params) => { '
         'const form = document.querySelector(params.formSelector); '
@@ -76,7 +76,7 @@ async def test_change_password_success(page):
         'new_password': 'newpass123',
         'confirm_password': 'newpass123',
     })
-    current = await page.locator('input[name="current_password"]').input_value()
+    current = await page.locator('#current_password').input_value()
     new = await page.locator('input[name="new_password"]').input_value()
     confirm = await page.locator('input[name="confirm_password"]').input_value()
     assert current == ""

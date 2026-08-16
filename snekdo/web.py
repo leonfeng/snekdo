@@ -410,6 +410,42 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
             return _render(request, "profile_content.html", title="Profile", user=user)
         return RedirectResponse(url="/profile", status_code=302)
 
+    @app.post("/profile/delete")
+    async def delete_account(
+        request: Request,
+        current_password: str = Form(default=""),
+        user_id: str = Depends(_require_login),
+        storage: TodoStorage = Depends(_storage),
+    ) -> Response:
+        """Delete the authenticated user's account and log them out."""
+        user_storage = get_user_storage(storage_path)
+        user = user_storage.get_by_id(user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        errors = []
+        if not verify_password(current_password, user.password_hash):
+            errors.append("Incorrect password")
+            user = user_storage.get_profile(user_id)
+            return _render(
+                request,
+                "profile_content.html",
+                title="Profile",
+                user=user,
+                error="; ".join(errors),
+            )
+
+        # Delete all todos belonging to the user
+        storage.delete_all_user_todos(user_id)
+
+        # Delete the user
+        user_storage.delete_user(user_id)
+
+        # Log out: delete the token cookie and redirect to login
+        response = RedirectResponse(url="/auth/login", status_code=302)
+        response.delete_cookie(key="token")
+        return response
+
 
 def create_web_app(storage_path: str | None = None) -> FastAPI:
     """Create a standalone FastAPI web application with Jinja2 templates.

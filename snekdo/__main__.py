@@ -311,6 +311,17 @@ def create_parser() -> argparse.ArgumentParser:
         "--storage", help="Path to the storage file", default=argparse.SUPPRESS
     )
 
+    # Delete account command
+    delete_account_parser = subparsers.add_parser(
+        "delete-account", help="Delete your account on the server"
+    )
+    delete_account_parser.add_argument(
+        "--password", required=True, help="Your current password"
+    )
+    delete_account_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
+
     return parser
 
 
@@ -373,6 +384,8 @@ def handle_command(args, parser) -> int:
             return handle_profile_update(args, parser)
         elif args.command == "change-password":
             return handle_change_password(args, parser)
+        elif args.command == "delete-account":
+            return handle_delete_account(args, parser)
         else:
             parser.print_help()
             return 0
@@ -783,6 +796,35 @@ def handle_change_password(args, parser) -> int:
         return 1
 
     print(f"Message: {response.get('message', 'Password changed successfully.')}")
+    return 0
+
+
+def handle_delete_account(args, parser) -> int:
+    """Handle the delete-account command by deleting the current user's account."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url="http://127.0.0.1:8000")
+
+    try:
+        client.delete_account(
+            password=args.password,
+            credentials_path=credentials_path,
+        )
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please check your password.", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    # Remove stored credentials on success
+    _delete_credentials(credentials_path)
+    print("Account deleted successfully.")
+    print(f"Credentials removed from: {credentials_path}")
     return 0
 
 

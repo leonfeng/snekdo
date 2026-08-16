@@ -51,4 +51,29 @@
         </div>
         <button type="submit" class="btn btn-danger">Change Password</button>
     </form>
+
+    <h2>Delete Account</h2>
+    <p class="text-danger">
+        Warning: This action is irreversible. All your todos and account data will be permanently deleted.
+    </p>
+    <form method="post" hx-post="/profile/delete" hx-target="#profile-content" hx-swap="outerHTML">
+        <div class="form-group">
+            <label for="delete_password">Password</label>
+            <input
+                type="password"
+                name="current_password"
+                id="delete_password"
+                required
+                autocomplete="off"
+                placeholder="Enter your password to confirm"
+            >
+        </div>
+        <button
+            type="submit"
+            class="btn btn-danger"
+            onclick="return confirm('Are you sure you want to delete your account? This action cannot be undone.')"
+        >
+            Delete Account
+        </button>
+    </form>
 </div>
