@@ -14,7 +14,7 @@
     </thead>
     <tbody>
         {% for todo in todos %}
-        <tr>
+        <tr id="todo-{{ todo.id }}">
             <td>{{ todo.id[:8] }}</td>
             <td><a href="/todos/{{ todo.id }}">{{ todo.title }}</a></td>
             <td>{{ "✓" if todo.completed else "pending" }}</td>

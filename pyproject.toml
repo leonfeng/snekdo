@@ -31,8 +31,8 @@ snekdo = "snekdo.__main__:main"
 
 [project.optional-dependencies]
 api = ["fastapi>=0.100", "uvicorn>=0.20"]
-test = ["pytest>=7.0", "pytest-cov>=4.0"]
-dev = ["ruff>=0.16"]
+test = ["pytest>=7.0", "pytest-cov>=4.0", "pytest-asyncio>=0.20"]
+dev = ["ruff>=0.16", "playwright>=1.40"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -41,6 +41,7 @@ include = ["snekdo*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 88

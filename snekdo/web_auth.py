@@ -54,11 +54,23 @@ def register_web_routes(router: APIRouter, storage_path: str | None = None) -> N
     @router.post("/auth/register")
     async def register_submit(
         request: Request,
-        username: str = Form(..., min_length=3, max_length=50),
-        password: str = Form(..., min_length=8, max_length=128),
+        username: str = Form(default=""),
+        password: str = Form(default=""),
         user_storage: UserStorage = Depends(_get_user_storage),
     ) -> HTMLResponse:
         """Handle registration submission."""
+        if not username or len(username) < 3:
+            return _render(
+                request,
+                "register.html",
+                error="Username must be at least 3 characters",
+            )
+        if not password or len(password) < 8:
+            return _render(
+                request,
+                "register.html",
+                error="Password must be at least 8 characters",
+            )
         try:
             user_data = UserCreate(username=username, password=password)
             hashed_password = _hash_password(user_data.password)

@@ -276,7 +276,7 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
             pending = [t for t in todos if not t.completed]
             return _render(
                 request,
-                "list.html",
+                "list_rows.html",
                 todos=pending,
                 title="Todos",
             )
@@ -334,6 +334,7 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         if user is None:
             raise HTTPException(status_code=404, detail="User not found")
 
+        print(f"DEBUG: display_name={display_name!r}, email={email!r}")
         errors = []
         if email and not EMAIL_REGEX.match(email):
             errors.append("Invalid email format")
