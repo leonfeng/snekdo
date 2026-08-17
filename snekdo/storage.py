@@ -339,6 +339,27 @@ class UserStorage:
         self.save(users)
         return True
 
+    def delete_user_with_todos(
+        self, user_id: str, todo_storage: TodoStorage
+    ) -> bool:
+        """Remove a user by ID and all their todos in a single operation.
+
+        This method first removes all todos belonging to the user from the
+        todo storage, then removes the user record from the user storage.
+        This ensures that account deletion is atomic and does not leave
+        orphaned todos.
+
+        Args:
+            user_id: The ID of the user to delete.
+            todo_storage: The :class:`TodoStorage` instance to use for
+                removing the user's todos.
+
+        Returns:
+            True if the user was found and deleted, False otherwise.
+        """
+        todo_storage.delete_all_user_todos(user_id)
+        return self.delete_user(user_id)
+
     def update_profile(
         self,
         user_id: str,

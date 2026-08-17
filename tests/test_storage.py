@@ -527,3 +527,144 @@ def test_user_storage_get_profile_not_found():
         storage = UserStorage(storage_path=str(storage_path))
         result = storage.get_profile("nonexistent")
         assert result is None
+
+
+def test_user_storage_delete_user_with_todos():
+    """Test delete_user_with_todos removes the user and their todos."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        todos_path = Path(tmpdir) / "todos.json"
+        users_path = Path(tmpdir) / "users.json"
+        todo_storage = TodoStorage(storage_path=str(todos_path))
+        user_storage = UserStorage(storage_path=str(users_path))
+
+        # Create a user
+        user = User(
+            id="1",
+            username="testuser",
+            display_name="Test User",
+            email="test@example.com",
+            password_hash="$2b$12$...",
+            created_at="2024-01-01T00:00:00",
+        )
+        user_storage.add(user)
+
+        # Create todos for the user
+        todo1 = Todo(
+            id="1",
+            title="Todo 1",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            user_id="1",
+        )
+        todo2 = Todo(
+            id="2",
+            title="Todo 2",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-02T00:00:00",
+            user_id="1",
+        )
+        todo_storage.save([todo1, todo2])
+
+        # Delete the user with their todos
+        result = user_storage.delete_user_with_todos("1", todo_storage)
+        assert result is True
+
+        # Verify the user is gone
+        assert user_storage.get_by_id("1") is None
+        # Verify the todos are gone
+        assert todo_storage.load() == []
+
+
+def test_user_storage_delete_user_with_todos_preserves_other_users():
+    """Test delete_user_with_todos preserves other users' todos."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        todos_path = Path(tmpdir) / "todos.json"
+        users_path = Path(tmpdir) / "users.json"
+        todo_storage = TodoStorage(storage_path=str(todos_path))
+        user_storage = UserStorage(storage_path=str(users_path))
+
+        # Create two users
+        user1 = User(
+            id="1",
+            username="user1",
+            display_name="User 1",
+            email="user1@example.com",
+            password_hash="$2b$12$...",
+            created_at="2024-01-01T00:00:00",
+        )
+        user2 = User(
+            id="2",
+            username="user2",
+            display_name="User 2",
+            email="user2@example.com",
+            password_hash="$2b$12$...",
+            created_at="2024-01-01T00:00:00",
+        )
+        user_storage.add(user1)
+        user_storage.add(user2)
+
+        # Create todos for both users
+        todo1 = Todo(
+            id="1",
+            title="User 1 todo",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            user_id="1",
+        )
+        todo2 = Todo(
+            id="2",
+            title="User 2 todo",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-02T00:00:00",
+            user_id="2",
+        )
+        todo_storage.save([todo1, todo2])
+
+        # Delete user 1 and their todos
+        result = user_storage.delete_user_with_todos("1", todo_storage)
+        assert result is True
+
+        # Verify user 1 is gone but user 2 remains
+        assert user_storage.get_by_id("1") is None
+        assert user_storage.get_by_id("2") is not None
+
+        # Verify user 1's todos are gone but user 2's remain
+        todos = todo_storage.load()
+        assert len(todos) == 1
+        assert todos[0].id == "2"
+        assert todos[0].title == "User 2 todo"
+
+
+def test_user_storage_delete_user_with_todos_not_found():
+    """Test delete_user_with_todos returns False for non-existent user."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        todos_path = Path(tmpdir) / "todos.json"
+        users_path = Path(tmpdir) / "users.json"
+        todo_storage = TodoStorage(storage_path=str(todos_path))
+        user_storage = UserStorage(storage_path=str(users_path))
+
+        # Create a user
+        user = User(
+            id="1",
+            username="testuser",
+            display_name="Test User",
+            email="test@example.com",
+            password_hash="$2b$12$...",
+            created_at="2024-01-01T00:00:00",
+        )
+        user_storage.add(user)
+
+        # Try to delete a non-existent user
+        result = user_storage.delete_user_with_todos("nonexistent", todo_storage)
+        assert result is False
+
+        # Verify the existing user is still there
+        assert user_storage.get_by_id("1") is not None

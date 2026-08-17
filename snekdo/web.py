@@ -446,11 +446,8 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
                 error="; ".join(errors),
             )
 
-        # Delete all todos belonging to the user
-        storage.delete_all_user_todos(user_id)
-
-        # Delete the user
-        user_storage.delete_user(user_id)
+        # Delete the user and all their todos
+        user_storage.delete_user_with_todos(user_id, storage)
 
         # Log out: delete the token cookie and redirect to login
         response = RedirectResponse(url="/auth/login", status_code=302)

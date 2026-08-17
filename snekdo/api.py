@@ -287,11 +287,8 @@ def create_app(storage_path: str | None = None) -> FastAPI:
                 detail="Incorrect password",
             )
 
-        # Delete all todos belonging to the user
-        todo_storage.delete_all_user_todos(current_user.id)
-
-        # Delete the user
-        success = user_storage.delete_user(current_user.id)
+        # Delete the user and all their todos
+        success = user_storage.delete_user_with_todos(current_user.id, todo_storage)
         if not success:
             raise HTTPException(
                 status_code=500,

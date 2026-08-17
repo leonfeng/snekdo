@@ -651,6 +651,52 @@ def test_delete_account_cascades_to_todos(tmp_path: Path):
     assert len(todos) == 0
 
 
+def test_delete_account_preserves_other_users_todos(tmp_path: Path):
+    """Test that deleting one user preserves another user's todos."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+
+    # Register and login user A
+    token_a, user_id_a = _register_and_login(client, username="deleteuser_a")
+
+    # Register and login user B
+    token_b, user_id_b = _register_and_login(client, username="deleteuser_b")
+
+    # Create a todo for user A (the one being deleted)
+    todo_a = _make_todo(title="User A todo")
+    todo_a.user_id = user_id_a
+    TodoStorage(storage_path=storage_path).add(todo_a)
+
+    # Create a todo for user B (the one that should be preserved)
+    todo_b = _make_todo(title="User B todo")
+    todo_b.user_id = user_id_b
+    TodoStorage(storage_path=storage_path).add(todo_b)
+
+    # Delete user A's account
+    response = client.request(
+        "DELETE",
+        "/api/v1/users/me",
+        json={"password": "password123"},
+        headers=_auth_header(token_a),
+    )
+    assert response.status_code == 200
+
+    # Verify user A's todo is deleted
+    # Verify user B's todo is preserved
+    todos = TodoStorage(storage_path=storage_path).load()
+    assert len(todos) == 1
+    assert todos[0].id == todo_b.id
+    assert todos[0].title == "User B todo"
+
+    # Verify user B can still see their todo
+    response = client.get("/api/v1/todos", headers=_auth_header(token_b))
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["title"] == "User B todo"
+
+
 def _create_todo_for_user(storage_path: str, username: str, password: str = "password123"):  # noqa: E501
     """Register and login a user, create a todo for them, and return (token, todo_id)."""
     app = create_app(storage_path=storage_path)
