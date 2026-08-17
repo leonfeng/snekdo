@@ -179,6 +179,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="New priority level",
     )
     modify_parser.add_argument(
+        "--completed",
+        type=str,
+        default=None,
+        choices=["true", "false"],
+        help="Set the completed status (true or false)",
+    )
+    modify_parser.add_argument(
         "--storage", help="Path to the storage file", default=argparse.SUPPRESS
     )
 
@@ -535,11 +542,12 @@ def handle_modify(args, parser) -> int:
         and args.description is None
         and args.due is None
         and args.priority is None
+        and getattr(args, "completed", None) is None
     ):
         print(
             "Error: No fields to update. "
             "Use --title, --description, --due, "
-            "or --priority to specify fields to update."
+            "--priority, or --completed to specify fields to update."
         )
         return 1
 
@@ -563,6 +571,10 @@ def handle_modify(args, parser) -> int:
             return 1
     if args.priority is not None:
         update_data["priority"] = args.priority
+
+    completed = getattr(args, "completed", None)
+    if completed is not None:
+        update_data["completed"] = completed.lower() == "true"
 
     storage.modify(args.todo_id, **update_data)
     print(f"Updated todo: {todo.title}")

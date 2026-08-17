@@ -38,7 +38,7 @@ The system SHALL validate that the todo ID is provided and that at least one fie
 - **THEN** system displays error message indicating no fields to update and returns non-zero exit code
 
 ### Requirement: Support all modifiable fields
-The system SHALL allow updating all optional todo attributes: title, description, and due date.
+The system SHALL allow updating all optional todo attributes: title, description, due date, priority, and completed status.
 
 #### Scenario: Update description
 - **WHEN** user runs modify command with `--description` argument
@@ -51,3 +51,15 @@ The system SHALL allow updating all optional todo attributes: title, description
 #### Scenario: Clear due date
 - **WHEN** user runs modify command with empty `--due` argument
 - **THEN** system does not modify the existing due date field (empty string is treated as not provided, preserving the current value)
+
+#### Scenario: Update priority
+- **WHEN** user runs modify command with `--priority` argument
+- **THEN** system updates the priority field
+
+#### Scenario: Update completed status
+- **WHEN** user runs modify command with `--completed` argument
+- **THEN** system updates the completed status of the todo
+
+#### Scenario: Clear completed status
+- **WHEN** user runs modify command with `--completed false`
+- **THEN** system marks the todo as not completed

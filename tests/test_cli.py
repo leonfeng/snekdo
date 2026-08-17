@@ -244,6 +244,7 @@ class TestCLI:
         args.description = None
         args.due = None
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
@@ -273,6 +274,7 @@ class TestCLI:
         args.description = None
         args.due = None
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
@@ -293,6 +295,7 @@ class TestCLI:
         args.description = None
         args.due = None
         args.storage = str(storage_file)
+        args.completed = None
 
         result = handle_modify(args, None)
         assert result == 1
@@ -319,6 +322,7 @@ class TestCLI:
         args.description = None
         args.due = None
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
@@ -356,6 +360,7 @@ class TestCLI:
         args.description = ""
         args.due = None
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
@@ -393,6 +398,7 @@ class TestCLI:
         args.description = None
         args.due = ""
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
@@ -431,6 +437,7 @@ class TestCLI:
         args.due = None
         args.priority = None
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
@@ -558,6 +565,7 @@ class TestCLI:
         args.due = None
         args.priority = "high"
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
@@ -576,6 +584,94 @@ class TestCLI:
             mock_storage_instance.modify.assert_called_once()
             call_args = mock_storage_instance.modify.call_args
             assert call_args[1]["priority"] == "high"
+
+    def test_modify_todo_completed_true(self, tmp_path):
+        """Test modifying a todo's completed status to true."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2027-12-31",
+                "completed": False,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "medium",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = None
+        args.priority = None
+        args.completed = "true"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2027-12-31",
+                completed=False,
+                created_at="2024-01-01T00:00:00",
+                priority="medium",
+            )
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once()
+            call_args = mock_storage_instance.modify.call_args
+            assert call_args[1]["completed"] is True
+
+    def test_modify_todo_completed_false(self, tmp_path):
+        """Test modifying a todo's completed status to false."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {
+                "id": "1",
+                "title": "Test todo",
+                "description": "A test todo",
+                "due": "2027-12-31",
+                "completed": True,
+                "created_at": "2024-01-01T00:00:00",
+                "priority": "medium",
+            }
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = None
+        args.priority = None
+        args.completed = "false"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(
+                id="1",
+                title="Test todo",
+                description="A test todo",
+                due="2027-12-31",
+                completed=True,
+                created_at="2024-01-01T00:00:00",
+                priority="medium",
+            )
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once()
+            call_args = mock_storage_instance.modify.call_args
+            assert call_args[1]["completed"] is False
 
     def test_list_sort_by_title(self, tmp_path):
         """Test listing todos sorted by title."""
@@ -2101,6 +2197,7 @@ class TestProfileCLI:
         args.due = "not-a-date"
         args.priority = None
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
@@ -2142,6 +2239,7 @@ class TestProfileCLI:
         args.due = "2028-06-15"
         args.priority = None
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
@@ -2183,6 +2281,7 @@ class TestProfileCLI:
         args.due = "2020-01-01"
         args.priority = None
         args.storage = str(storage_file)
+        args.completed = None
 
         with patch('snekdo.__main__.TodoStorage') as mock_storage:
             mock_storage_instance = mock_storage.return_value
