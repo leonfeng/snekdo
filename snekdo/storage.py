@@ -93,9 +93,6 @@ class TodoStorage:
     def add(self, todo: Todo) -> None:
         """Append a todo and persist."""
         todos = self.load()
-        if todo.user_id is None:
-            # Leave user_id as None for backward compatibility with existing todos
-            pass
         todos.append(todo)
         self.save(todos)
 
@@ -188,6 +185,8 @@ class TodoStorage:
                     todo.due = kwargs["due"]
                 if "priority" in kwargs:
                     todo.priority = kwargs["priority"]
+                if "completed" in kwargs:
+                    todo.completed = kwargs["completed"]
                 self.save(todos)
                 return True
         return False

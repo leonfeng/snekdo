@@ -108,7 +108,7 @@ class Todo:
             id=data.get("id", ""),
             title=data.get("title", ""),
             description=data.get("description", ""),
-            due=data.get("due"),
+            due=data.get("due") or None,
             completed=data.get("completed", False),
             created_at=data.get("created_at", ""),
             priority=data.get("priority", "medium"),

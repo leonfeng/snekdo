@@ -664,3 +664,106 @@ def test_delete_cross_user_returns_404(tmp_path: Path):
     )
 
     assert response.status_code == 404
+
+
+def test_create_todo_without_due_stores_none(tmp_path: Path):
+    """Test that creating a todo without a due date stores None."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    response = client.post(
+        "/api/v1/todos",
+        json={"title": "No due todo"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["due"] is None
+    stored = TodoStorage(storage_path=storage_path).load()
+    assert stored[0].due is None
+
+
+def test_update_todo_completed_via_put(tmp_path: Path):
+    """Test that updating the completed status via PUT works."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    # Create a todo
+    create_response = client.post(
+        "/api/v1/todos",
+        json={"title": "Test todo"},
+        headers=_auth_header(token),
+    )
+    assert create_response.status_code == 201
+    todo_id = create_response.json()["id"]
+
+    # Update completed status
+    response = client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"completed": True},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["completed"] is True
+    stored = TodoStorage(storage_path=storage_path).load()
+    assert stored[0].completed is True
+
+
+def test_update_todo_completed_false_via_put(tmp_path: Path):
+    """Test that updating completed to false via PUT works."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    # Create a todo
+    create_response = client.post(
+        "/api/v1/todos",
+        json={"title": "Test todo"},
+        headers=_auth_header(token),
+    )
+    assert create_response.status_code == 201
+    todo_id = create_response.json()["id"]
+
+    # Update completed status to false
+    response = client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"completed": False},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["completed"] is False
+
+
+def test_update_todo_without_completed_does_not_error(tmp_path: Path):
+    """Test that updating a todo without the completed field does not error."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    # Create a todo
+    create_response = client.post(
+        "/api/v1/todos",
+        json={"title": "Test todo"},
+        headers=_auth_header(token),
+    )
+    assert create_response.status_code == 201
+    todo_id = create_response.json()["id"]
+
+    # Update only title
+    response = client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"title": "Updated title"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "Updated title"
+    assert response.json()["completed"] is False

@@ -14,6 +14,7 @@ from snekdo.api_auth import (
     get_current_user_factory,
 )
 from snekdo.auth import verify_password
+from snekdo.due_date import validate_due_date
 from snekdo.models import Todo, User
 from snekdo.storage import StorageError, TodoStorage, UserStorage
 
@@ -35,7 +36,7 @@ class TodoCreate(BaseModel):
         return Todo(
             title=self.title,
             description=self.description,
-            due=self.due or "",
+            due=self.due,
             completed=False,
             created_at=datetime.now().isoformat(),
             priority=self.priority,
@@ -49,6 +50,7 @@ class TodoUpdate(BaseModel):
     description: str | None = None
     due: str | None = None
     priority: str | None = None
+    completed: bool | None = None
 
 
 class TodoResponse(BaseModel):
@@ -367,7 +369,7 @@ def create_app(storage_path: str | None = None) -> FastAPI:
     ) -> TodoResponse:
         """Add a new todo."""
         try:
-            due = _validate_due_date(todo_data.due) if todo_data.due else ""
+            due = validate_due_date(todo_data.due)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         todo = todo_data.to_todo()
@@ -413,11 +415,13 @@ def create_app(storage_path: str | None = None) -> FastAPI:
             update_dict["description"] = update_data.description
         if update_data.due is not None:
             try:
-                update_dict["due"] = _validate_due_date(update_data.due)
+                update_dict["due"] = validate_due_date(update_data.due)
             except ValueError as e:
                 raise HTTPException(status_code=422, detail=str(e))
         if update_data.priority is not None:
             update_dict["priority"] = update_data.priority
+        if update_data.completed is not None:
+            update_dict["completed"] = update_data.completed
 
         if not update_dict:
             raise HTTPException(status_code=422, detail="No fields to update")
@@ -447,22 +451,6 @@ def create_app(storage_path: str | None = None) -> FastAPI:
 # ---------------------------------------------------------------------------
 # Helpers (mirroring __main__.py)
 # ---------------------------------------------------------------------------
-
-
-def _validate_due_date(due_date: str) -> str:
-    """Validate a due date string (YYYY-MM-DD format)."""
-    if due_date is None or due_date.strip() == "":
-        return ""
-    try:
-        parsed = datetime.strptime(due_date, "%Y-%m-%d")
-        if parsed.date() < datetime.now().date():
-            raise ValueError(f"Due date '{due_date}' cannot be in the past")
-        return due_date
-    except ValueError:
-        raise ValueError(
-            f"Invalid due date format: '{due_date}'. "
-            f"Use YYYY-MM-DD format and a future date"
-        )
 
 
 def _parse_created_at(created_at: str) -> datetime:

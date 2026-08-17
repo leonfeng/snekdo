@@ -196,6 +196,7 @@ class ServerHttpClient:
         description: str | None = None,
         due: str | None = None,
         priority: str | None = None,
+        completed: bool | None = None,
         credentials_path: Path | None = None,
     ) -> dict:
         """Update an existing todo on the server.
@@ -206,6 +207,7 @@ class ServerHttpClient:
             description: New description.
             due: New due date.
             priority: New priority.
+            completed: New completion status.
             credentials_path: Optional path to the credentials file.
 
         Returns:
@@ -220,6 +222,8 @@ class ServerHttpClient:
             data["due"] = due
         if priority is not None:
             data["priority"] = priority
+        if completed is not None:
+            data["completed"] = completed
         return self._request(
             "PUT",
             f"/api/v1/todos/{todo_id}",

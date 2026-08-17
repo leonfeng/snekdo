@@ -17,6 +17,7 @@ from snekdo.api_client import (
     ServerHttpClient,
     SyncSummary,
 )
+from snekdo.due_date import validate_due_date
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage
 from snekdo.web import register_web_routes
@@ -62,32 +63,6 @@ def _delete_credentials(credentials_path: Path) -> None:
     """Delete the credentials file."""
     if credentials_path.exists():
         credentials_path.unlink()
-
-
-def validate_due_date(due_date: str) -> str:
-    """Validate a due date string.
-
-    Args:
-        due_date: The due date string to validate (YYYY-MM-DD format).
-
-    Returns:
-        The validated due date string.
-
-    Raises:
-        ValueError: If the date format is invalid or the date is in the past.
-    """
-    if due_date is None or due_date.strip() == "":
-        return ""
-    try:
-        parsed = datetime.strptime(due_date, "%Y-%m-%d")
-        if parsed.date() < datetime.now().date():
-            raise ValueError(f"Due date '{due_date}' cannot be in the past")
-        return due_date
-    except ValueError:
-        raise ValueError(
-            f"Invalid due date format: '{due_date}'. "
-            f"Use YYYY-MM-DD format and a future date"
-        )
 
 
 def _parse_created_at(created_at: str) -> datetime:
@@ -419,7 +394,7 @@ def handle_add(args, parser) -> int:
     """Handle the add command."""
     storage = TodoStorage(storage_path=getattr(args, "storage", None))
     try:
-        due = validate_due_date(args.due) if args.due else ""
+        due = validate_due_date(args.due)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1

@@ -11,6 +11,7 @@ from fastapi.responses import RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 
 from snekdo.auth import decode_access_token, verify_password
+from snekdo.due_date import validate_due_date
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage, UserStorage
 from snekdo.web_auth import register_web_routes as register_auth_web_routes
@@ -60,12 +61,6 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
 
     def _storage(request: Request) -> TodoStorage:
         return get_storage(storage_path)
-
-    def _validate_due_date(due_date: str) -> str:
-        """Validate a due date string (YYYY-MM-DD format)."""
-        from snekdo.__main__ import validate_due_date as _v
-
-        return _v(due_date)
 
     def _require_login(
         request: Request,
@@ -158,7 +153,7 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
                 title="Add Todo",
                 error="Title is required",
             )
-        due_clean = _validate_due_date(due) if due else ""
+        due_clean = validate_due_date(due)
         todo = Todo(
             title=title,
             description=description,
@@ -217,7 +212,7 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
                 todo=todo,
                 error="Title is required",
             )
-        due_clean = _validate_due_date(due) if due else ""
+        due_clean = validate_due_date(due)
         storage.modify(
             todo_id,
             title=title,

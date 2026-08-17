@@ -245,7 +245,7 @@ def test_modify_clear_due():
         result = storage.modify("1", due="")
         assert result is True
         updated = storage.get("1")
-        assert updated.due == ""
+        assert updated.due is None
 
 
 def test_modify_partial_update():
