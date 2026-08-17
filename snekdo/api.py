@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from snekdo.api_auth import (
@@ -29,7 +31,7 @@ class TodoCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: str = ""
     due: str | None = None
-    priority: str = "medium"
+    priority: Literal["low", "medium", "high"] = Field(default="medium")
 
     def to_todo(self) -> Todo:
         """Convert to a :class:`Todo` instance."""
@@ -50,7 +52,7 @@ class TodoUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     due: str | None = None
-    priority: str | None = None
+    priority: Literal["low", "medium", "high"] | None = None
     completed: bool | None = None
 
 
@@ -301,7 +303,7 @@ def create_app(storage_path: str | None = None) -> FastAPI:
     async def list_todos(
         storage: TodoStorage = Depends(_storage),
         current_user: User = Depends(get_current_user),
-        status: str | None = Query(default=None, enum=["all", "pending", "completed"]),
+        status: str = Query(default="pending", enum=["all", "pending", "completed"]),
         priority: str | None = Query(default=None, enum=["low", "medium", "high"]),
         sort: str | None = Query(
             default="created_at", enum=["created_at", "title", "priority", "completed"]
@@ -409,7 +411,7 @@ def create_app(storage_path: str | None = None) -> FastAPI:
             update_dict["title"] = update_data.title
         if update_data.description is not None:
             update_dict["description"] = update_data.description
-        if update_data.due:
+        if update_data.due is not None and update_data.due.strip() != "":
             try:
                 update_dict["due"] = validate_due_date(update_data.due)
             except ValueError as e:
@@ -420,7 +422,13 @@ def create_app(storage_path: str | None = None) -> FastAPI:
             update_dict["completed"] = update_data.completed
 
         if not update_dict:
-            raise HTTPException(status_code=422, detail="No fields to update")
+            # An empty or whitespace-only `due` value is treated as "not provided"
+            # (see the due check above), but the request is still valid and the
+            # existing todo should be returned with 200.
+            if update_data.due is not None:
+                pass
+            else:
+                raise HTTPException(status_code=422, detail="No fields to update")
 
         storage.modify(todo_id, user_id=current_user.id, **update_dict)
         todo = storage.get(todo_id, user_id=current_user.id)

@@ -24,17 +24,37 @@ The system SHALL expose an OpenAPI schema at `GET /api/v1/openapi.json`.
 
 ### Requirement: List todos via API
 
-The system SHALL provide a `GET /api/v1/todos` endpoint that returns all todos as JSON.
+The system SHALL provide a `GET /api/v1/todos` endpoint that returns todos as JSON,
+defaulting to the `pending` status filter when no `status` query parameter is
+specified.
 
 #### Scenario: List todos returns JSON array
 
 - **WHEN** a client sends `GET /api/v1/todos`
-- **THEN** the server responds with status `200` and a JSON array of todo objects
+- **THEN** the server responds with status `200` and a JSON array of pending todo objects
 
 #### Scenario: Empty list returns empty array
 
 - **WHEN** no todos exist and a client sends `GET /api/v1/todos`
 - **THEN** the server responds with status `200` and an empty JSON array `[]`
+
+### Requirement: List todos defaults to pending
+
+The system SHALL default the `status` query parameter of `GET /api/v1/todos` to
+`pending`, so that only pending todos are returned when the client does not
+explicitly specify a status filter. This matches the CLI `list` command behavior.
+
+#### Scenario: List todos defaults to pending filter
+
+- **WHEN** a client sends `GET /api/v1/todos` without a `status` query parameter
+- **THEN** the server responds with status `200` and a JSON array containing only
+  pending todos (todos where `completed` is `false`)
+
+#### Scenario: List todos with explicit status=all returns all
+
+- **WHEN** a client sends `GET /api/v1/todos?status=all`
+- **THEN** the server responds with status `200` and a JSON array containing all
+  todos (pending and completed)
 
 ### Requirement: Show todo by ID via API
 

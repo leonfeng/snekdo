@@ -91,6 +91,64 @@ def test_list_todos_with_data(tmp_path: Path):
     assert data[0]["title"] == todo.title
 
 
+def test_list_todos_defaults_to_pending(tmp_path: Path):
+    """Test that GET /api/v1/todos defaults to pending status filter."""
+    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+
+    # Create a pending todo
+    pending_todo = _make_todo(title="Pending todo")
+    pending_todo.user_id = user_id
+    storage.add(pending_todo)
+
+    # Create a completed todo
+    completed_todo = _make_todo(title="Completed todo")
+    completed_todo.user_id = user_id
+    completed_todo.completed = True
+    storage.add(completed_todo)
+
+    # List todos without status filter should return only pending
+    response = client.get("/api/v1/todos", headers=_auth_header(token))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["title"] == "Pending todo"
+    assert data[0]["completed"] is False
+
+
+def test_list_todos_status_all_returns_all(tmp_path: Path):
+    """Test that GET /api/v1/todos?status=all returns all todos."""
+    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+
+    # Create a pending todo
+    pending_todo = _make_todo(title="Pending todo")
+    pending_todo.user_id = user_id
+    storage.add(pending_todo)
+
+    # Create a completed todo
+    completed_todo = _make_todo(title="Completed todo")
+    completed_todo.user_id = user_id
+    completed_todo.completed = True
+    storage.add(completed_todo)
+
+    # List todos with status=all should return both
+    response = client.get("/api/v1/todos?status=all", headers=_auth_header(token))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    titles = {d["title"] for d in data}
+    assert titles == {"Pending todo", "Completed todo"}
+
+
 def test_show_todo(tmp_path: Path):
     """Test showing a single todo by ID."""
     storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
@@ -219,6 +277,97 @@ def test_add_todo_invalid_due_returns_422_via_to_todo(tmp_path: Path):
     )
 
     assert response.status_code == 422
+
+
+def test_add_todo_invalid_priority_returns_422(tmp_path: Path):
+    """Test that adding a todo with an invalid priority returns 422."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+    response = client.post(
+        "/api/v1/todos",
+        json={"title": "New todo", "priority": "urgent"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_add_todo_empty_priority_returns_422(tmp_path: Path):
+    """Test that adding a todo with an empty priority returns 422."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+    response = client.post(
+        "/api/v1/todos",
+        json={"title": "New todo", "priority": ""},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_add_todo_valid_priority_accepted(tmp_path: Path):
+    """Test that adding a todo with a valid priority is accepted."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+    response = client.post(
+        "/api/v1/todos",
+        json={"title": "New todo", "priority": "high"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["priority"] == "high"
+
+
+def test_modify_todo_invalid_priority_returns_422(tmp_path: Path):
+    """Test that updating a todo with an invalid priority returns 422."""
+    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
+    todo = _make_todo()
+
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+    todo.user_id = user_id
+    storage.add(todo)
+
+    response = client.put(
+        f"/api/v1/todos/{todo.id}",
+        json={"priority": "critical"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_modify_todo_valid_priority_accepted(tmp_path: Path):
+    """Test that updating a todo's priority to a valid value is accepted."""
+    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
+    todo = _make_todo()
+
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+    todo.user_id = user_id
+    storage.add(todo)
+
+    response = client.put(
+        f"/api/v1/todos/{todo.id}",
+        json={"priority": "low"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["priority"] == "low"
 
 
 def test_complete_todo(tmp_path: Path):
