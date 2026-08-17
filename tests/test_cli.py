@@ -2846,7 +2846,60 @@ class TestSyncCommand:
             assert call_kwargs["description"] == ""
             assert call_kwargs["due"] is None
             assert call_kwargs["priority"] == "medium"
+            assert call_kwargs["completed"] is False
             assert "credentials_path" in call_kwargs
+
+    def test_sync_push_updates_completed_status(self, tmp_path, monkeypatch):
+        """Test that sync push passes the completed field to update_todo."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": True, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = self._make_args(direction="push", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.return_value = [
+                {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            ]
+            mock_client.update_todo.return_value = {"id": "1", "title": "Local todo", "completed": True}
+            mock_client_class.return_value = mock_client
+
+            result = handle_sync(args, None)
+
+            assert result == 0
+            call_kwargs = mock_client.update_todo.call_args[1]
+            assert call_kwargs["todo_id"] == "1"
+            assert call_kwargs["completed"] is True
+
+    def test_sync_both_updates_completed_status(self, tmp_path, monkeypatch):
+        """Test that sync both passes the completed field to update_todo."""
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": True, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+        ]
+        storage_file.write_text(json.dumps(todos))
+
+        args = self._make_args(direction="both", storage=str(storage_file))
+
+        from snekdo.__main__ import handle_sync
+        with patch("snekdo.__main__.ServerHttpClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get_todos.return_value = [
+                {"id": "1", "title": "Local todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
+            ]
+            mock_client.update_todo.return_value = {"id": "1", "title": "Local todo", "completed": True}
+            mock_client_class.return_value = mock_client
+
+            result = handle_sync(args, None)
+
+            assert result == 0
+            call_kwargs = mock_client.update_todo.call_args[1]
+            assert call_kwargs["todo_id"] == "1"
+            assert call_kwargs["completed"] is True
 
     def test_sync_server_unavailable(self, tmp_path, monkeypatch):
         """Test that sync handles server connection errors."""

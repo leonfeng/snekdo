@@ -898,6 +898,7 @@ def _sync(
                         description=local_todo.description,
                         due=local_todo.due or None,
                         priority=local_todo.priority,
+                        completed=local_todo.completed,
                         credentials_path=credentials_path,
                     )
                     summary.updated += 1
