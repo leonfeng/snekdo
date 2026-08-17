@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -363,10 +364,15 @@ def main() -> int:
 def handle_command(args, parser) -> int:
     """Handle the parsed command line arguments."""
     if getattr(args, "debug", False):
+        _stderr = logging.StreamHandler(sys.stderr)
+        _stderr.setFormatter(logging.Formatter("DEBUG: %(message)s"))
+        _logger = logging.getLogger(__name__)
+        _logger.setLevel(logging.DEBUG)
+        _logger.addHandler(_stderr)
         storage_path = _get_storage_path(args)
         command = getattr(args, "command", None) or "unknown"
-        print(f"DEBUG: command={command}", file=sys.stderr)
-        print(f"DEBUG: storage_path={storage_path}", file=sys.stderr)
+        _logger.debug(f"command={command}")
+        _logger.debug(f"storage_path={storage_path}")
     try:
         if args.command == "add":
             return handle_add(args, parser)
