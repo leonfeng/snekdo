@@ -12,6 +12,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from snekdo.auth import decode_access_token, verify_password
 from snekdo.due_date import validate_due_date
+from snekdo.api import TodoCreate
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage, UserStorage
 from snekdo.web_auth import register_web_routes as register_auth_web_routes
@@ -153,16 +154,22 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
                 title="Add Todo",
                 error="Title is required",
             )
-        due_clean = validate_due_date(due)
-        todo = Todo(
+        todo_data = TodoCreate(
             title=title,
             description=description,
-            due=due_clean,
-            completed=False,
-            created_at=datetime.now().isoformat(),
+            due=due,
             priority=priority,
-            user_id=user_id,
         )
+        try:
+            todo = todo_data.to_todo()
+        except ValueError as e:
+            return _render(
+                request,
+                "add.html",
+                title="Add Todo",
+                error=str(e),
+            )
+        todo.user_id = user_id
         storage.add(todo)
         return RedirectResponse(url="/todos", status_code=302)
 

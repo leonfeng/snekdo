@@ -33,10 +33,11 @@ class TodoCreate(BaseModel):
 
     def to_todo(self) -> Todo:
         """Convert to a :class:`Todo` instance."""
+        due = validate_due_date(self.due)
         return Todo(
             title=self.title,
             description=self.description,
-            due=self.due,
+            due=due,
             completed=False,
             created_at=datetime.now().isoformat(),
             priority=self.priority,
@@ -369,11 +370,9 @@ def create_app(storage_path: str | None = None) -> FastAPI:
     ) -> TodoResponse:
         """Add a new todo."""
         try:
-            due = validate_due_date(todo_data.due)
+            todo = todo_data.to_todo()
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
-        todo = todo_data.to_todo()
-        todo.due = due
         todo.user_id = current_user.id
         storage.add(todo)
         return TodoResponse.from_todo(todo)

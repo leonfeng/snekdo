@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from snekdo.api import create_app
+from snekdo.api import TodoCreate, create_app
 from snekdo.storage import TodoStorage
 
 
@@ -159,6 +159,55 @@ def test_add_todo_missing_title(tmp_path: Path):
 
 def test_add_todo_invalid_due_date(tmp_path: Path):
     """Test adding a todo with an invalid due date returns 422."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, _ = _register_and_login(client)
+    response = client.post(
+        "/api/v1/todos",
+        json={"title": "New todo", "due": "not-a-date"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_todo_create_valid_due_date_preserved():
+    """Test that to_todo() preserves a valid future due date."""
+    todo = TodoCreate(title="Test", due="2027-12-31").to_todo()
+    assert todo.due == "2027-12-31"
+
+
+def test_todo_create_empty_due_becomes_none():
+    """Test that to_todo() normalizes an empty string due to None."""
+    todo = TodoCreate(title="Test", due="").to_todo()
+    assert todo.due is None
+
+
+def test_todo_create_default_due_is_none():
+    """Test that to_todo() defaults the due date to None."""
+    todo = TodoCreate(title="Test").to_todo()
+    assert todo.due is None
+
+
+def test_todo_create_invalid_due_raises_value_error():
+    """Test that to_todo() raises ValueError for an invalid due date format."""
+    import pytest
+
+    with pytest.raises(ValueError):
+        TodoCreate(title="Test", due="not-a-date").to_todo()
+
+
+def test_todo_create_past_due_raises_value_error():
+    """Test that to_todo() raises ValueError for a past due date."""
+    import pytest
+
+    with pytest.raises(ValueError):
+        TodoCreate(title="Test", due="2020-01-01").to_todo()
+
+
+def test_add_todo_invalid_due_returns_422_via_to_todo(tmp_path: Path):
+    """Test that add_todo returns 422 when to_todo() raises ValueError."""
     app = create_app(storage_path=str(tmp_path / "todos.json"))
     client = TestClient(app)
 
