@@ -412,7 +412,7 @@ def create_app(storage_path: str | None = None) -> FastAPI:
             update_dict["title"] = update_data.title
         if update_data.description is not None:
             update_dict["description"] = update_data.description
-        if update_data.due is not None:
+        if update_data.due:
             try:
                 update_dict["due"] = validate_due_date(update_data.due)
             except ValueError as e:

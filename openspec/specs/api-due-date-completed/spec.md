@@ -41,6 +41,18 @@ The system SHALL accept `completed` as a field in the `PUT /api/v1/todos/{id}` r
 - **THEN** the server responds with status `200` and the updated todo object
 - **AND** the todo's `completed` field is unchanged
 
+#### Scenario: PUT without due field does not clear existing due date
+
+- **WHEN** a client sends `PUT /api/v1/todos/{valid-id}` with `{"title": "new title"}`
+- **THEN** the server responds with status `200` and the updated todo object
+- **AND** the stored todo's `due` field is unchanged
+
+#### Scenario: PUT with empty string due preserves existing due date
+
+- **WHEN** a client sends `PUT /api/v1/todos/{valid-id}` with `{"due": ""}`
+- **THEN** the server responds with status `200` and the updated todo object
+- **AND** the stored todo's `due` field is unchanged (empty string is treated as not provided)
+
 ### Requirement: API validate_due_date returns null for empty dates
 
 The system SHALL return `null` (Python `None`) from the internal `_validate_due_date` helper when given an empty or `None` input.

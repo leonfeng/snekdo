@@ -219,14 +219,24 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
                 todo=todo,
                 error="Title is required",
             )
-        due_clean = validate_due_date(due)
-        storage.modify(
-            todo_id,
-            title=title,
-            description=description,
-            due=due_clean,
-            priority=priority,
-        )
+        update_kwargs = {
+            "title": title,
+            "description": description,
+            "priority": priority,
+        }
+        try:
+            due_clean = validate_due_date(due)
+        except ValueError as e:
+            return _render(
+                request,
+                "edit.html",
+                title="Edit Todo",
+                todo=todo,
+                error=str(e),
+            )
+        if due_clean is not None:
+            update_kwargs["due"] = due_clean
+        storage.modify(todo_id, **update_kwargs)
         return RedirectResponse(url="/todos", status_code=302)
 
     # ------------------------------------------------------------------

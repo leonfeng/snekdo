@@ -555,7 +555,7 @@ def handle_modify(args, parser) -> int:
         update_data["title"] = args.title
     if args.description is not None:
         update_data["description"] = args.description
-    if args.due is not None:
+    if args.due:
         try:
             update_data["due"] = validate_due_date(args.due)
         except ValueError as e:

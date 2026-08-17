@@ -221,3 +221,6 @@ __marimo__/
 snekdo.egg-info
 *.egg-info
 .pytest_cache
+
+# OpenSpec archives (moved changes)
+openspec/changes/archive/

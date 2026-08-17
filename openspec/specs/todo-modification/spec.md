@@ -50,4 +50,4 @@ The system SHALL allow updating all optional todo attributes: title, description
 
 #### Scenario: Clear due date
 - **WHEN** user runs modify command with empty `--due` argument
-- **THEN** system sets the due date to null/None
+- **THEN** system does not modify the existing due date field (empty string is treated as not provided, preserving the current value)
