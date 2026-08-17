@@ -97,9 +97,8 @@ class Todo:
             "completed": self.completed,
             "created_at": self.created_at,
             "priority": self.priority,
+            "user_id": self.user_id,
         }
-        if self.user_id is not None:
-            data["user_id"] = self.user_id
         return data
 
     @classmethod

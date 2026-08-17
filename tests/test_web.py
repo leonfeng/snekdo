@@ -496,3 +496,100 @@ class TestPasswordChange:
         )
         assert response.status_code == 200
 
+
+class TestUserIdFilter:
+    """Tests for the user_id filtering in the web UI."""
+
+    def test_web_created_todo_visible_in_web_list(self, client):
+        """Test that a web-created todo (with user_id) is visible in the web list."""
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+        todo = Todo(title="Web todo", user_id=client.app.state.user_id)
+        storage.add(todo)
+
+        response = client.get("/todos")
+        assert response.status_code == 200
+        assert todo.title in response.text
+
+    def test_web_created_todo_not_visible_to_other_user(self, client, tmp_path):
+        """Test that a todo belonging to one user is not visible to another."""
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage, UserStorage
+
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+
+        # Create a todo for a different user
+        other_user_id = "other-user-123"
+        todo = Todo(title="Other user's todo", user_id=other_user_id)
+        storage.add(todo)
+
+        response = client.get("/todos")
+        assert response.status_code == 200
+        assert "Other user's todo" not in response.text
+
+    def test_cli_created_todo_visible_in_cli_list(self, client, tmp_path):
+        """Test that a CLI-created todo (without user_id) is visible in CLI list.
+
+        The CLI list does not filter by user_id, so todos without user_id
+        are still visible there.
+        """
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+        # Simulate CLI-created todo (no user_id)
+        todo = Todo(title="CLI todo")
+        storage.add(todo)
+
+        # Verify the todo is in storage
+        todos = storage.load()
+        assert len(todos) == 1
+        assert todos[0].title == "CLI todo"
+        assert todos[0].user_id is None
+
+    def test_web_list_filters_by_user_id(self, client):
+        """Test that the web list only shows todos for the authenticated user."""
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+
+        # Create todos for different users
+        todo1 = Todo(title="User 1 todo", user_id=client.app.state.user_id)
+        todo2 = Todo(title="Other user todo", user_id="other-user-456")
+        storage.add(todo1)
+        storage.add(todo2)
+
+        response = client.get("/todos")
+        assert response.status_code == 200
+        assert "User 1 todo" in response.text
+        assert "Other user todo" not in response.text
+
+    def test_web_add_sets_user_id(self, client):
+        """Test that the web add endpoint sets user_id on created todos."""
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+
+        # Create a todo via the web form
+        response = client.post(
+            "/todos/add",
+            data={"title": "Web added todo"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+
+        # Verify the todo has user_id set
+        todos = storage.load()
+        assert len(todos) == 1
+        assert todos[0].user_id == client.app.state.user_id
+        assert todos[0].title == "Web added todo"
+

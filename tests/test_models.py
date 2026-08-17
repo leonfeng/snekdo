@@ -178,3 +178,85 @@ def test_user_default_id_generation():
     """Test that a User gets a default ID if none is provided."""
     user = User(username="testuser")
     assert user.id != ""
+
+
+# ---------------------------------------------------------------------------
+# Todo user_id serialization
+# ---------------------------------------------------------------------------
+
+def test_todo_to_dict_includes_user_id():
+    """Test that to_dict always includes the user_id key (even when None)."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        description="",
+        due=None,
+        completed=False,
+        created_at="2024-01-01T00:00:00",
+        user_id="user123",
+    )
+    data = todo.to_dict()
+    assert "user_id" in data
+    assert data["user_id"] == "user123"
+
+
+def test_todo_to_dict_includes_none_user_id():
+    """Test that to_dict includes user_id key even when it is None."""
+    todo = Todo(
+        id="2",
+        title="Test",
+        description="",
+        due=None,
+        completed=False,
+        created_at="2024-01-01T00:00:00",
+    )
+    data = todo.to_dict()
+    assert "user_id" in data
+    assert data["user_id"] is None
+
+
+def test_todo_from_dict_with_user_id():
+    """Test that from_dict handles user_id when present."""
+    data = {
+        "id": "1",
+        "title": "Test",
+        "description": "",
+        "due": None,
+        "completed": False,
+        "created_at": "2024-01-01T00:00:00",
+        "user_id": "user123",
+    }
+    todo = Todo.from_dict(data)
+    assert todo.user_id == "user123"
+
+
+def test_todo_from_dict_without_user_id():
+    """Test that from_dict handles missing user_id (backward compatibility)."""
+    data = {
+        "id": "1",
+        "title": "Test",
+        "description": "",
+        "due": None,
+        "completed": False,
+        "created_at": "2024-01-01T00:00:00",
+    }
+    todo = Todo.from_dict(data)
+    assert todo.user_id is None
+
+
+def test_todo_roundtrip_with_user_id():
+    """Test that a todo with user_id roundtrips through to_dict/from_dict."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        description="",
+        due=None,
+        completed=False,
+        created_at="2024-01-01T00:00:00",
+        user_id="user123",
+    )
+    data = todo.to_dict()
+    restored = Todo.from_dict(data)
+    assert restored.id == todo.id
+    assert restored.title == todo.title
+    assert restored.user_id == todo.user_id
