@@ -388,7 +388,7 @@ def create_app(storage_path: str | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=404, detail=f"Todo with ID '{todo_id}' not found"
             )
-        storage.complete(todo_id)
+        storage.complete(todo_id, user_id=current_user.id)
         todo.completed = True
         return TodoResponse.from_todo(todo)
 
@@ -422,8 +422,8 @@ def create_app(storage_path: str | None = None) -> FastAPI:
         if not update_dict:
             raise HTTPException(status_code=422, detail="No fields to update")
 
-        storage.modify(todo_id, **update_dict)
-        todo = storage.get(todo_id)
+        storage.modify(todo_id, user_id=current_user.id, **update_dict)
+        todo = storage.get(todo_id, user_id=current_user.id)
         return TodoResponse.from_todo(todo)
 
     @app.delete("/api/v1/todos/{todo_id}", response_model=MessageResponse)
@@ -438,7 +438,7 @@ def create_app(storage_path: str | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=404, detail=f"Todo with ID '{todo_id}' not found"
             )
-        storage.delete(todo_id)
+        storage.delete(todo_id, user_id=current_user.id)
         return MessageResponse(message=f"Deleted todo: {todo.title}")
 
     return app

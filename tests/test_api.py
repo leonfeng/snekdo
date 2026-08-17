@@ -600,3 +600,67 @@ def test_delete_account_cascades_to_todos(tmp_path: Path):
     # Verify the todo is deleted
     todos = storage.get_all()
     assert len(todos) == 0
+
+
+def _create_todo_for_user(storage_path: str, username: str, password: str = "password123"):  # noqa: E501
+    """Register and login a user, create a todo for them, and return (token, todo_id)."""
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+    token, user_id = _register_and_login(client, username=username, password=password)
+    todo = _make_todo()
+    todo.user_id = user_id
+    TodoStorage(storage_path=storage_path).add(todo)
+    return token, todo.id
+
+
+def test_complete_cross_user_returns_404(tmp_path: Path):
+    """Test that user B cannot complete user A's todo."""
+    storage_path = str(tmp_path / "todos.json")
+    token_a, todo_id = _create_todo_for_user(storage_path, "crossuser_a")
+
+    # Register and login user B
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+    token_b, _ = _register_and_login(client, username="crossuser_b")
+
+    response = client.post(
+        f"/api/v1/todos/{todo_id}/complete", headers=_auth_header(token_b)
+    )
+
+    assert response.status_code == 404
+
+
+def test_modify_cross_user_returns_404(tmp_path: Path):
+    """Test that user B cannot modify user A's todo."""
+    storage_path = str(tmp_path / "todos.json")
+    token_a, todo_id = _create_todo_for_user(storage_path, "crossuser_a")
+
+    # Register and login user B
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+    token_b, _ = _register_and_login(client, username="crossuser_b")
+
+    response = client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"title": "Hacked title"},
+        headers=_auth_header(token_b),
+    )
+
+    assert response.status_code == 404
+
+
+def test_delete_cross_user_returns_404(tmp_path: Path):
+    """Test that user B cannot delete user A's todo."""
+    storage_path = str(tmp_path / "todos.json")
+    token_a, todo_id = _create_todo_for_user(storage_path, "crossuser_a")
+
+    # Register and login user B
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+    token_b, _ = _register_and_login(client, username="crossuser_b")
+
+    response = client.delete(
+        f"/api/v1/todos/{todo_id}", headers=_auth_header(token_b)
+    )
+
+    assert response.status_code == 404
