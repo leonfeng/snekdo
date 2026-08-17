@@ -112,5 +112,5 @@ class Todo:
             completed=data.get("completed", False),
             created_at=data.get("created_at", ""),
             priority=data.get("priority", "medium"),
-            user_id=data.get("user_id"),
+            user_id=data.get("user_id") or None,
         )

@@ -85,3 +85,22 @@ empty due values MUST be normalized to `None`.
 
 - **WHEN** `TodoCreate(title="Test", due="2020-01-01").to_todo()` is called
 - **THEN** a `ValueError` is raised
+
+### Requirement: Todo.from_dict normalizes empty strings to None
+
+The system SHALL convert empty-string values to `None` for nullable `Todo` fields (`due` and `user_id`) when deserializing from a dict loaded from JSON storage.
+
+#### Scenario: Empty string due becomes None
+
+- **WHEN** `Todo.from_dict()` is called with `{"due": ""}`
+- **THEN** the resulting `Todo` has `due is None`
+
+#### Scenario: Empty string user_id becomes None
+
+- **WHEN** `Todo.from_dict()` is called with `{"user_id": ""}`
+- **THEN** the resulting `Todo` has `user_id is None`
+
+#### Scenario: Valid values are preserved
+
+- **WHEN** `Todo.from_dict()` is called with `{"due": "2024-12-31", "user_id": "user123"}`
+- **THEN** `due == "2024-12-31"` and `user_id == "user123"`

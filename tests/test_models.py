@@ -243,6 +243,40 @@ def test_todo_from_dict_without_user_id():
     todo = Todo.from_dict(data)
     assert todo.user_id is None
 
+    # Also verify empty string user_id is normalized to None.
+    data["user_id"] = ""
+    todo = Todo.from_dict(data)
+    assert todo.user_id is None
+
+
+def test_todo_from_dict_empty_string_user_id():
+    """Test that from_dict converts empty string user_id to None."""
+    data = {
+        "id": "1",
+        "title": "Test",
+        "description": "",
+        "due": None,
+        "completed": False,
+        "created_at": "2024-01-01T00:00:00",
+        "user_id": "",
+    }
+    todo = Todo.from_dict(data)
+    assert todo.user_id is None
+
+
+def test_todo_from_dict_empty_string_due():
+    """Test that from_dict converts empty string due to None."""
+    data = {
+        "id": "1",
+        "title": "Test",
+        "description": "",
+        "due": "",
+        "completed": False,
+        "created_at": "2024-01-01T00:00:00",
+    }
+    todo = Todo.from_dict(data)
+    assert todo.due is None
+
 
 def test_todo_roundtrip_with_user_id():
     """Test that a todo with user_id roundtrips through to_dict/from_dict."""
