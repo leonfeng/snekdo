@@ -7,7 +7,7 @@ compatibility: Requires openspec CLI.
 metadata:
   author: openspec
   version: "1.0"
-  generatedBy: "1.9.0"
+  generatedBy: "localspec-overlay"
 ---
 
 Propose a new change - create the change and generate all artifacts in one step.
@@ -130,7 +130,7 @@ After completing all artifacts, summarize:
 - Change name and location
 - List of artifacts created with brief descriptions, plus any conditional artifact you skipped and why
 - What's ready: "All artifacts needed for implementation are ready."
-- Prompt: "The artifacts are ready for review. When you are ready, run `/opsx-apply`." That line is for the user. Do not invoke apply, load an apply skill, or edit project code after this summary.
+- Prompt: "The artifacts are ready for review. When you are ready, run `/openspec-apply-change`." That line is for the user. Do not invoke apply, load an apply skill, or edit project code after this summary.
 
 **Artifact Creation Guidelines**
 
@@ -146,7 +146,7 @@ After completing all artifacts, summarize:
 **Guardrails**
 - The request that invoked this workflow authorizes planning only. Any implementation or apply instruction in that request does not carry forward. Do NOT implement the change, start the apply workflow, or edit project code during this workflow. After presenting the artifacts, stop. Wait for a new user request after the artifacts are presented. Do not start the apply workflow yourself.
 - Do not run tests, linters, or builds. Do not grep or edit package or test source to investigate failures
-- Do not invoke `/opsx-apply`, an apply skill, or any apply slash command in this conversation
+- Do not invoke `/openspec-apply-change`, an apply skill, or any apply slash command in this conversation
 - If an artifact file already exists at `resolvedOutputPath`, do not rewrite it
 - After status shows the required set is complete, print the summary and stop
 - Create every artifact the apply phase transitively depends on, not just the ids listed in `apply.requires`

@@ -1,5 +1,5 @@
 ---
-description: "Split a change into independently applyable changes (Experimental)"
+description: "LocalSpec overlay for opsx-split"
 ---
 
 Split one OpenSpec change into multiple independently applyable changes.
@@ -8,7 +8,7 @@ Split one OpenSpec change into multiple independently applyable changes.
 
 **Change vs spec — read this first**
 
-- A **change** is the unit of implementation. `/opsx-apply` implements every remaining task in that change.
+- A **change** is the unit of implementation. `/openspec-apply-change` implements every remaining task in that change.
 - A **spec** (capability) describes behavior. Multiple specs inside one change still apply together.
 - Splitting specs inside the same change does **not** create independently applyable units. That is the mistake this workflow exists to prevent.
 - If the user asked to "split into sub-specs," do this workflow instead: split into **changes**.
@@ -17,7 +17,7 @@ Split one OpenSpec change into multiple independently applyable changes.
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
-**Input**: Optionally specify a source change name (e.g., `/opsx-split feat-user-account-deletion`). Optionally name the slices or the split axis. If omitted, infer the source change from conversation context. If vague or ambiguous you MUST prompt for available changes.
+**Input**: Optionally specify a source change name (e.g., `/openspec-split-change feat-user-account-deletion`). Optionally name the slices or the split axis. If omitted, infer the source change from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
 **Steps**
 
@@ -28,7 +28,7 @@ Split one OpenSpec change into multiple independently applyable changes.
    - Auto-select if only one active change exists
    - If ambiguous, run `openspec list --json` to get available changes sorted by most recently modified, and ask the user to select one
 
-   Always announce: "Using change: <name>" and how to override (e.g., `/opsx-split <other>`).
+   Always announce: "Using change: <name>" and how to override (e.g., `/openspec-split-change <other>`).
 
 2. **Read the source artifacts**
    ```bash
@@ -48,9 +48,22 @@ Split one OpenSpec change into multiple independently applyable changes.
    - The user asked to apply only one spec, capability, or slice
    - The user asked to split a spec into sub-specs
    - The task list is too large for one apply session
+   - **Local agentic apply** would struggle (see below)
+
+   **Local agentic apply (vLLM / BigBang / OpenCode)**
+
+   On local models with tight concurrency (e.g. vLLM `max-num-seqs=2`, parent + child streaming), **default to splitting** when any of these is true — even if the change feels cohesive:
+   - `tasks.md` has **more than 6** unchecked tasks
+   - The change spans **backend Python + HTML/templates + e2e tests**
+   - Prior apply sessions **looped** (read dumps, edit retries, `git diff`, pytest reruns)
+   - The user applies with BigBang or another local reasoning model via OpenCode
+
+   Do **not** tell the user to keep one monolithic change "for simplicity" in this environment. Smaller slices finish; large monolithic applies loop.
+
+   Typical slice axis (adjust to the source change): backend/security → templates/HTMX → e2e coverage last.
 
    Do **not** split when:
-   - One capability and a small task list — say so and stop
+   - One capability and a small task list **and** the user is not on constrained local agentic apply — say so and stop
    - The user wants multiple specs but one apply (keep one change)
    - Every task is already complete — splitting will not change what apply does
    - The request changes intent rather than batching implementation — that is a new change, not a split
@@ -76,7 +89,7 @@ Split one OpenSpec change into multiple independently applyable changes.
    ```
    Otherwise omit `--schema`. If a store is selected, keep `--store "<id>"` sticky.
 
-   For each child, create every artifact in the required set the same way `/opsx-propose` does — `openspec status --change "<child-name>" --json`, then `openspec instructions <artifact-id> --change "<child-name>" --json`, then write to `resolvedOutputPath` / glob paths from `instruction`. Each child gets **only its slice**:
+   For each child, create every artifact in the required set the same way `/openspec-propose` does — `openspec status --change "<child-name>" --json`, then `openspec instructions <artifact-id> --change "<child-name>" --json`, then write to `resolvedOutputPath` / glob paths from `instruction`. Each child gets **only its slice**:
    - Proposal scoped to that slice (what/why for this change alone)
    - Specs/capabilities that belong to this slice only — do not copy the whole source
    - Design reduced to this slice
@@ -90,7 +103,7 @@ Split one OpenSpec change into multiple independently applyable changes.
    ```bash
    openspec archive "<source-name>" --skip-specs --yes
    ```
-   Do not mkdir/mv/rm the change directory. Do not sync specs first. Leaving the source active would make `/opsx-apply` implement everything again. OpenSpec has no parent-change tracker.
+   Do not mkdir/mv/rm the change directory. Do not sync specs first. Leaving the source active would make `/openspec-apply-change` implement everything again. OpenSpec has no parent-change tracker.
 
 7. **Stop. Show apply order. Do not apply.**
 
@@ -109,16 +122,19 @@ After a completed split, show:
 2. `<child-b>` — <slice summary>
 ...
 
-Apply the first slice with `/opsx-apply <child-a>`. Do not apply the whole original change.
+Apply the first slice with `/openspec-apply-change <child-a>`. Do not apply the whole original change.
+
+On local vLLM, apply slices **one at a time**. Do not spawn multiple apply subagents concurrently.
 ```
 
 **Guardrails**
 - Planning artifacts only — NEVER edit implementation code
-- NEVER start `/opsx-apply` from this workflow
+- NEVER start `/openspec-apply-change` from this workflow
+- NEVER recommend monolithic apply on local vLLM when the change spans backend + templates + e2e or has more than six unchecked tasks
 - NEVER only split spec files inside the source change — that is not independently applyable
 - NEVER copy the entire source into every child
 - NEVER archive the source with spec merge (children own those deltas)
 - Confirm the slice plan before creating any child
 - Use artifact ids and paths from `openspec status`; custom schemas must work unchanged
 - Preserve CLI-controlled blocked/ready/all-done behavior on each child
-- If `/opsx-split` is not installed in this project, still follow this contract when the user asks to split a change
+- If `/openspec-split-change` is not installed in this project, still follow this contract when the user asks to split a change
