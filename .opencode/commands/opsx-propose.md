@@ -8,7 +8,7 @@ Propose a new change - create the change and generate all artifacts in one step.
 
 I'll create a change with the artifacts your schema defines. With the default spec-driven schema that is:
 - proposal.md (what & why)
-- `specs/<capability-path>/spec.md` (what the system must do - a delta, not the main spec)
+- `specs/<capability-path>/spec.md` (a delta: `## ADDED/MODIFIED/REMOVED/RENAMED Requirements`, never `## Requirements`)
 - design.md (how)
 - tasks.md (implementation steps)
 
@@ -19,6 +19,36 @@ When the user is ready to implement, they must start the apply workflow explicit
 ---
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
+
+**Delta spec format:** Change specs under `specs/` are deltas. `openspec validate` rejects a change spec that uses `## Requirements`. That header belongs only in `openspec/specs/<capability-path>/spec.md` after archive.
+
+Copy the specs `template` headers verbatim. Use only the operation headers that apply:
+- `## ADDED Requirements`
+- `## MODIFIED Requirements`
+- `## REMOVED Requirements`
+- `## RENAMED Requirements`
+
+Do not copy a main spec and keep its `## Requirements` heading.
+
+Wrong:
+```
+## Requirements
+### Requirement: Export data
+```
+
+Right:
+```
+## ADDED Requirements
+
+### Requirement: Export data
+The system SHALL export user data as CSV.
+
+#### Scenario: Successful export
+- **WHEN** the user exports
+- **THEN** a CSV file downloads
+```
+
+After writing every specs file, run `openspec validate "<name>"` before creating design or tasks. If validation reports no delta sections, rewrite the headers and re-validate. That rewrite is the exception to leaving an existing artifact file.
 
 **Input**: The argument after `/openspec-propose` is the change name (kebab-case), OR a description of what the user wants to build.
 
@@ -92,10 +122,11 @@ When the user is ready to implement, they must start the apply workflow explicit
         - `dependencies`: Completed artifacts to read for context
       - Read any completed dependency files for context - always re-read them from disk, even if you saw them earlier in the conversation (the user may have edited them)
       - If the `instruction` field delegates creation to a specific skill or command, invoke it to produce the artifact instead of writing the file yourself, then verify the artifact file exists at `resolvedOutputPath`
-      - If the file at `resolvedOutputPath` already exists, leave it. Do not rewrite it.
+      - If the file at `resolvedOutputPath` already exists, leave it. Do not rewrite it. Exception: a specs file that failed `openspec validate` for missing delta sections MUST be rewritten with `## ADDED/MODIFIED/REMOVED/RENAMED Requirements` headers.
       - Otherwise create the artifact file using `template` as the structure and write it to `resolvedOutputPath`. If `resolvedOutputPath` is a glob, follow `instruction` to choose the concrete file path
       - Apply `context` and `rules` as constraints - but do NOT copy them into the file
       - Show brief progress: "Created <artifact-id>"
+      - If this artifact is `specs`, run `openspec validate "<name>"` before creating the next artifact. If it reports no delta sections, rewrite the headers first.
 
    b. **Continue until every artifact in the required set exists (not just `apply.requires`)**
       - After creating each artifact, re-run `openspec status --change "<name>" --json`
@@ -131,6 +162,7 @@ After completing all artifacts, summarize:
 - The schema defines what each artifact should contain - follow it
 - Read dependency artifacts for context before creating new ones
 - Use `template` as the structure for your output file - fill in its sections
+- Change specs are deltas: copy `template` headers verbatim (`## ADDED Requirements`, `## MODIFIED Requirements`, `## REMOVED Requirements`, `## RENAMED Requirements`). Never write `## Requirements` in a change spec
 - **IMPORTANT**: `context` and `rules` are constraints for YOU, not content for the file
   - Do NOT copy `<context>`, `<rules>`, `<project_context>` blocks into the artifact
   - These guide what you write, but should never appear in the output
