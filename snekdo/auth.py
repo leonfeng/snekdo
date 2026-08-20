@@ -6,6 +6,7 @@ Provides JWT token generation/validation and password hashing.
 from __future__ import annotations
 
 import os
+import secrets
 from datetime import UTC, datetime, timedelta
 
 try:
@@ -19,8 +20,23 @@ except ImportError:  # pragma: no cover
     jwt = None
     JWTError = Exception
 
+def _resolve_secret_key() -> str:
+    """Return the JWT signing key.
+
+    The key is sourced from the ``SNEKDO_JWT_SECRET_KEY`` environment variable.
+    When the variable is not set, a random per-process key is generated so that
+    no static hardcoded secret ever ships with the package. Multi-worker
+    deployments must set ``SNEKDO_JWT_SECRET_KEY`` so all workers sign tokens
+    with the same key.
+    """
+    env_key = os.environ.get("SNEKDO_JWT_SECRET_KEY")
+    if env_key is not None and env_key:
+        return env_key
+    return secrets.token_urlsafe(32)
+
+
 # JWT settings
-SECRET_KEY = os.environ.get("SNEKDO_JWT_SECRET_KEY", "snekdo-secret-key-change-me")
+SECRET_KEY = _resolve_secret_key()
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 60
 
