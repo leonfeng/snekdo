@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-
-from fastapi import Depends, FastAPI, HTTPException, Query
 from typing import Literal
 
+from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from snekdo.api_auth import (

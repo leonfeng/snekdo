@@ -23,7 +23,8 @@
     </div>
 
     <h2>Update Profile</h2>
-    <form method="post" hx-post="/profile/update" hx-target="#profile-content" hx-swap="outerHTML">
+    <form method="post" hx-post="/profile/update" hx-target=".profile-info" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
             <label for="update_display_name">Display Name</label>
             <input type="text" name="display_name" id="update_display_name" value="{{ user.display_name }}">
@@ -36,7 +37,8 @@
     </form>
 
     <h2>Change Password</h2>
-    <form method="post" hx-post="/profile/password" hx-target="#profile-content" hx-swap="outerHTML">
+    <form method="post" hx-post="/profile/password" hx-target=".profile-info" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
             <label for="current_password">Current Password</label>
             <input type="password" name="current_password" id="current_password" required autocomplete="off">
@@ -53,10 +55,8 @@
     </form>
 
     <h2>Delete Account</h2>
-    <p class="text-danger">
-        Warning: This action is irreversible. All your todos and account data will be permanently deleted.
-    </p>
-    <form method="post" hx-post="/profile/delete" hx-target="#profile-content" hx-swap="outerHTML">
+    <form method="post" hx-post="/profile/delete" hx-target=".profile-info" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
             <label for="delete_password">Password</label>
             <input

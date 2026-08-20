@@ -12,7 +12,7 @@
             <th>Actions</th>
         </tr>
     </thead>
-    <tbody>
+    <tbody id="todo-list">
         {% for todo in todos %}
         <tr id="todo-{{ todo.id }}">
             <td>{{ todo.id[:8] }}</td>
@@ -30,13 +30,15 @@
                     hx-post="/todos/{{ todo.id }}/complete"
                     hx-target="tr#todo-{{ todo.id }}"
                     hx-swap="outerHTML"
+                    hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'
                 >Complete</button>
                 <button
                     type="button"
                     class="btn btn-danger"
                     hx-post="/todos/{{ todo.id }}/delete"
-                    hx-target="tr#todo-{{ todo.id }}"
+                    hx-target="tbody#todo-list"
                     hx-swap="outerHTML"
+                    hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'
                 >Delete</button>
                 {% endif %}
             </td>
