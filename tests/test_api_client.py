@@ -1,6 +1,6 @@
 """Tests for the API client layer."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from snekdo.api_client import ServerHttpClient
 

@@ -12,6 +12,13 @@ from snekdo.api_auth import (
     UserCreate,
     get_current_user,
 )
+from snekdo.csrf import (
+    delete_csrf_token_cookie,
+    generate_csrf_token,
+    get_csrf_token_cookie,
+    set_csrf_token_cookie,
+    verify_csrf_token,
+)
 from snekdo.models import User
 from snekdo.storage import StorageError, UserStorage
 
@@ -29,7 +36,13 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
 def _render(request: Request, template_name: str, **context) -> Response:
-    """Render a Jinja2 template and return an HTML response."""
+    """Render a Jinja2 template and return an HTML response.
+
+    Automatically includes the CSRF token in the template context so that
+    forms can include it as a hidden input.
+    """
+    csrf_token = get_csrf_token_cookie(request)
+    context.setdefault("csrf_token", csrf_token)
     template = request.app.state.template_env.get_template(template_name)
     return Response(template.render(**context), media_type="text/html")
 
@@ -49,7 +62,10 @@ def register_web_routes(router: APIRouter, storage_path: str | None = None) -> N
     @router.get("/auth/register", response_class=HTMLResponse)
     async def register_page(request: Request) -> HTMLResponse:
         """Show the registration page."""
-        return _render(request, "register.html", error=None)
+        token = generate_csrf_token()
+        response = _render(request, "register.html", error=None, csrf_token=token)
+        set_csrf_token_cookie(response, token, secure=False)
+        return response
 
     @router.post("/auth/register")
     async def register_submit(
@@ -59,6 +75,12 @@ def register_web_routes(router: APIRouter, storage_path: str | None = None) -> N
         user_storage: UserStorage = Depends(_get_user_storage),
     ) -> HTMLResponse:
         """Handle registration submission."""
+        if not await verify_csrf_token(request):
+            return _render(
+                request,
+                "register.html",
+                error="Invalid CSRF token. Please try again.",
+            )
         if not username or len(username) < 3:
             return _render(
                 request,
@@ -80,24 +102,49 @@ def register_web_routes(router: APIRouter, storage_path: str | None = None) -> N
                 created_at=datetime.now().isoformat(),
             )
             user_storage.add(user)
-            return RedirectResponse(url="/auth/login", status_code=303)
+            response = RedirectResponse(url="/auth/login", status_code=303)
+            # Rotate the CSRF token after registration
+            new_csrf_token = generate_csrf_token()
+            set_csrf_token_cookie(response, new_csrf_token, secure=False)
+            return response
         except StorageError as e:
             return _render(request, "register.html", error=str(e))
 
     @router.get("/auth/login", response_class=HTMLResponse)
     async def login_page(request: Request) -> HTMLResponse:
         """Show the login page."""
-        return _render(request, "login.html", error=None)
+        token = generate_csrf_token()
+        response = _render(request, "login.html", error=None, csrf_token=token)
+        set_csrf_token_cookie(response, token, secure=False)
+        return response
 
     @router.post("/auth/login")
     async def login_submit(
         request: Request,
-        username: str = Form(..., min_length=3, max_length=50),
-        password: str = Form(..., min_length=8, max_length=128),
+        username: str = Form(default=""),
+        password: str = Form(default=""),
         user_storage: UserStorage = Depends(_get_user_storage),
         response: Response = None,
     ) -> HTMLResponse:
         """Handle login submission."""
+        if not await verify_csrf_token(request):
+            return _render(
+                request,
+                "login.html",
+                error="Invalid CSRF token. Please try again.",
+            )
+        if not username or len(username) < 3:
+            return _render(
+                request,
+                "login.html",
+                error="Username must be at least 3 characters",
+            )
+        if not password or len(password) < 8:
+            return _render(
+                request,
+                "login.html",
+                error="Password must be at least 8 characters",
+            )
         user = user_storage.get(username)
         if user is None or not _verify_password(password, user.password_hash):
             return _render(
@@ -111,10 +158,14 @@ def register_web_routes(router: APIRouter, storage_path: str | None = None) -> N
             value=token,
             httponly=True,
             max_age=3600,
+            secure=False,
         )
+        # Rotate the CSRF token after login
+        new_csrf_token = generate_csrf_token()
+        set_csrf_token_cookie(response, new_csrf_token, secure=False)
         return response
 
-    @router.get("/auth/logout")
+    @router.post("/auth/logout")
     async def logout(
         request: Request,
         response: Response = None,
@@ -122,6 +173,7 @@ def register_web_routes(router: APIRouter, storage_path: str | None = None) -> N
         """Handle logout."""
         response = RedirectResponse(url="/auth/login", status_code=303)
         response.delete_cookie(key="token")
+        delete_csrf_token_cookie(response)
         return response
 
     @router.get("/auth/verify")

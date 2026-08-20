@@ -146,6 +146,35 @@ The system SHALL provide web pages for registration and login via the Jinja2 fro
 - **WHEN** a user navigates to `/auth/login`
 - **THEN** the system renders a login form
 
+#### Scenario: Login with invalid input re-renders form
+
+- **WHEN** a user submits the login form with an empty username or password
+- **THEN** the login form is re-rendered with an HTML error message
+
+#### Scenario: Registration with invalid input re-renders form
+
+- **WHEN** a user submits the registration form with an invalid username or password
+- **THEN** the registration form is re-rendered with an HTML error message
+
+### Requirement: Logout
+
+The system SHALL provide a logout endpoint that invalidates the user session. The logout endpoint MUST use the HTTP POST method so that it is not cacheable or CSRF-able.
+
+#### Scenario: Logout redirects to login
+
+- **WHEN** a logged-in user clicks the logout link
+- **THEN** the session is invalidated and the user is redirected to `/auth/login`
+
+#### Scenario: Logout requires POST
+
+- **WHEN** a user sends a GET request to the logout endpoint
+- **THEN** the server returns a 405 Method Not Allowed response
+
+#### Scenario: Logout invalidates CSRF token
+
+- **WHEN** a user logs out
+- **THEN** the CSRF token is also invalidated
+
 ### Requirement: User registration records created_at timestamp
 
 The system SHALL record a non-empty `created_at` timestamp (ISO 8601 format) when registering a new user account through any registration interface (API or web).

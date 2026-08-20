@@ -19,6 +19,15 @@ from snekdo.web import get_template_env, register_web_routes
 BASE_URL = "http://127.0.0.1:8765"
 
 
+async def _get_csrf_token_from_page(page):
+    """Extract the CSRF token from the page's cookies."""
+    cookies = await page.context.cookies()
+    for cookie in cookies:
+        if cookie['name'] == 'csrf_token':
+            return cookie['value']
+    return None
+
+
 @pytest.fixture
 def e2e_server(tmp_path):
     """Start a test server and yield the base URL.
@@ -40,6 +49,7 @@ def e2e_server(tmp_path):
         log_level="warning",
         reload=False,
         access_log=False,
+        factory=False,
     )
     server = uvicorn.Server(config)
 

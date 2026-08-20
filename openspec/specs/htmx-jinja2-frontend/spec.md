@@ -38,7 +38,8 @@ Priority, Due, Created At columns).
 ### Requirement: Add todo via web UI
 
 The system SHALL provide a web form to add a new todo. The form includes
-fields for title, description, due date, and priority.
+fields for title, description, due date, and priority. The priority field
+MUST only accept the values `high`, `medium`, or `low`.
 
 #### Scenario: Add todo form is rendered
 
@@ -56,10 +57,18 @@ fields for title, description, due date, and priority.
 - **WHEN** a user submits the add form with an empty title
 - **THEN** the server renders the form with a validation error message
 
+#### Scenario: Add todo with invalid priority
+
+- **WHEN** a user submits the add form with a priority value other than
+  `high`, `medium`, or `low`
+- **THEN** the server renders the form with a validation error message
+
 ### Requirement: Complete todo via HTMX
 
 The system SHALL allow a user to mark a todo as complete via an HTMX
 button that triggers a partial page update without a full page reload.
+The handler MUST load the most recent todo instance from storage before
+saving.
 
 #### Scenario: Complete todo via HTMX
 
@@ -75,13 +84,20 @@ button that triggers a partial page update without a full page reload.
 ### Requirement: Delete todo via HTMX
 
 The system SHALL allow a user to delete a todo via an HTMX button that
-triggers a partial page update without a full page reload.
+triggers a partial page update without a full page reload. When the last
+todo in the list is deleted, the empty state MUST be rendered as a `<p>`
+element inside the `<tbody>` (not as `outerHTML` of a `<tr>`).
 
 #### Scenario: Delete todo via HTMX
 
 - **WHEN** a user clicks the "delete" button on a todo row
 - **THEN** the server deletes the todo and removes the row from the
   table without a full page reload
+
+#### Scenario: Delete last todo shows empty state
+
+- **WHEN** a user deletes the last remaining todo via HTMX
+- **THEN** the table body displays an empty-state message without invalid HTML
 
 #### Scenario: Delete non-existent todo
 
@@ -91,7 +107,8 @@ triggers a partial page update without a full page reload.
 ### Requirement: Modify todo via web UI
 
 The system SHALL provide a web form to modify an existing todo's title,
-description, due date, and priority.
+description, due date, and priority. An empty string value for due date
+MUST clear the existing due date.
 
 #### Scenario: Edit todo form is rendered
 
@@ -109,6 +126,11 @@ description, due date, and priority.
 - **WHEN** a user navigates to `/todos/{non-existent-id}/edit`
 - **THEN** the server returns a 404 response
 
+#### Scenario: Edit todo with empty due date clears due date
+
+- **WHEN** a user submits the edit form with an empty due date
+- **THEN** the todo's due date is cleared
+
 ### Requirement: Show todo details via web UI
 
 The system SHALL provide a page that displays the full details of a
@@ -124,6 +146,67 @@ single todo.
 
 - **WHEN** a user navigates to `/todos/{non-existent-id}`
 - **THEN** the server returns a 404 response
+
+### Requirement: HTMX forms include CSRF tokens
+
+The system SHALL include a CSRF token in every state-changing form (add,
+edit, complete, delete, profile update, password change, account deletion)
+so that the server can validate the request.
+
+#### Scenario: Add form includes CSRF token
+
+- **WHEN** a user navigates to `/todos/add`
+- **THEN** the form includes a hidden input field containing the CSRF token
+
+#### Scenario: Edit form includes CSRF token
+
+- **WHEN** a user navigates to `/todos/{id}/edit`
+- **THEN** the form includes a hidden input field containing the CSRF token
+
+#### Scenario: Delete form includes CSRF token
+
+- **WHEN** a user views the todo list
+- **THEN** each delete button includes the CSRF token (as a data attribute
+  or hidden input)
+
+### Requirement: Web forms handle validation errors as HTML
+
+The system SHALL re-render forms with HTML validation error messages when
+submission fails due to invalid input, instead of returning JSON error
+responses.
+
+#### Scenario: Add todo invalid input returns HTML
+
+- **WHEN** a user submits the add form with invalid data
+- **THEN** the server returns HTML (not JSON) with the form and error message
+
+#### Scenario: Edit todo invalid input returns HTML
+
+- **WHEN** a user submits the edit form with invalid data
+- **THEN** the server returns HTML (not JSON) with the form and error message
+
+### Requirement: Profile forms use valid HTMX targets
+
+The system SHALL use HTMX targets that reference elements inside the form
+container, not the form container itself, to avoid self-referential
+replacement issues.
+
+#### Scenario: Profile form targets inner container
+
+- **WHEN** a user submits the profile update form
+- **THEN** the response is swapped into a container within the form, not
+  the form's own wrapper
+
+### Requirement: Delete account handles HTMX requests
+
+The system SHALL return HTML content (not a 302 redirect) when a
+delete-account request is made via HTMX.
+
+#### Scenario: Delete account HTMX returns HTML
+
+- **WHEN** a user clicks "Delete account" and confirms via HTMX
+- **THEN** the page updates with a confirmation message without a full
+  page reload
 
 ### Requirement: HTMX is loaded without a build step
 
@@ -147,17 +230,20 @@ desktop and mobile viewports.
 
 ### Requirement: Registration page
 
-The system SHALL provide a `/auth/register` web page that renders a registration form.
+The system SHALL provide a `/auth/register` web page that renders a
+registration form.
 
 #### Scenario: Registration form is rendered
 
 - **WHEN** a user navigates to `/auth/register`
-- **THEN** the system displays a form with `username` and `password` fields and a submit button
+- **THEN** the system displays a form with `username` and `password`
+  fields and a submit button
 
 #### Scenario: Registration form submission creates account
 
 - **WHEN** a user submits the registration form with valid credentials
-- **THEN** the system creates the account and redirects to the todo list page
+- **THEN** the system creates the account and redirects to the todo list
+  page
 
 #### Scenario: Registration with invalid data shows error
 
@@ -166,17 +252,20 @@ The system SHALL provide a `/auth/register` web page that renders a registration
 
 ### Requirement: Login page
 
-The system SHALL provide a `/auth/login` web page that renders a login form.
+The system SHALL provide a `/auth/login` web page that renders a login
+form.
 
 #### Scenario: Login form is rendered
 
 - **WHEN** a user navigates to `/auth/login`
-- **THEN** the system displays a form with `username` and `password` fields and a submit button
+- **THEN** the system displays a form with `username` and `password`
+  fields and a submit button
 
 #### Scenario: Login form submission authenticates
 
 - **WHEN** a user submits the login form with valid credentials
-- **THEN** the system authenticates the user and redirects to the todo list page
+- **THEN** the system authenticates the user and redirects to the todo
+  list page
 
 #### Scenario: Login with invalid credentials shows error
 
@@ -185,7 +274,8 @@ The system SHALL provide a `/auth/login` web page that renders a login form.
 
 ### Requirement: Unauthenticated access redirect
 
-The system SHALL redirect unauthenticated users to the login page when accessing todo routes.
+The system SHALL redirect unauthenticated users to the login page when
+accessing todo routes.
 
 #### Scenario: Todo route redirects to login
 
@@ -194,14 +284,17 @@ The system SHALL redirect unauthenticated users to the login page when accessing
 
 #### Scenario: Auth routes are accessible without login
 
-- **WHEN** an unauthenticated user navigates to `/auth/register` or `/auth/login`
+- **WHEN** an unauthenticated user navigates to `/auth/register` or
+  `/auth/login`
 - **THEN** the system displays the form without redirecting
 
 ### Requirement: Logout
 
-The system SHALL provide a logout route that invalidates the current session.
+The system SHALL provide a logout route that invalidates the current
+session.
 
 #### Scenario: Logout redirects to login
 
 - **WHEN** an authenticated user clicks logout
-- **THEN** the system invalidates the session and redirects to `/auth/login`
+- **THEN** the system invalidates the session and redirects to
+  `/auth/login`

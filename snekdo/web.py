@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 
-from snekdo.auth import decode_access_token, verify_password
-from snekdo.due_date import validate_due_date
 from snekdo.api import TodoCreate
-from snekdo.models import Todo
+from snekdo.auth import decode_access_token, verify_password
+from snekdo.csrf import (
+    delete_csrf_token_cookie,
+    get_csrf_token_cookie,
+    verify_csrf_token,
+)
+from snekdo.due_date import validate_due_date
+from snekdo.models import User
 from snekdo.storage import StorageError, TodoStorage, UserStorage
 from snekdo.web_auth import register_web_routes as register_auth_web_routes
 
@@ -45,7 +50,13 @@ def get_storage(storage_path: str | None = None) -> TodoStorage:
 
 
 def _render(request: Request, template_name: str, **context) -> Response:
-    """Render a Jinja2 template and return an HTML response."""
+    """Render a Jinja2 template and return an HTML response.
+
+    Automatically includes the CSRF token in the template context so that
+    forms can include it as a hidden input.
+    """
+    csrf_token = get_csrf_token_cookie(request)
+    context.setdefault("csrf_token", csrf_token)
     template = request.app.state.template_env.get_template(template_name)
     return Response(template.render(**context), media_type="text/html")
 
@@ -147,12 +158,26 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         user_id: str = Depends(_require_login),
     ) -> Response:
         """Create a new todo and redirect to the list."""
+        if not await verify_csrf_token(request):
+            return _render(
+                request,
+                "add.html",
+                title="Add Todo",
+                error="Invalid CSRF token. Please try again.",
+            )
         if not title or not title.strip():
             return _render(
                 request,
                 "add.html",
                 title="Add Todo",
                 error="Title is required",
+            )
+        if priority not in ("high", "medium", "low"):
+            return _render(
+                request,
+                "add.html",
+                title="Add Todo",
+                error="Priority must be high, medium, or low",
             )
         todo_data = TodoCreate(
             title=title,
@@ -168,6 +193,13 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
                 "add.html",
                 title="Add Todo",
                 error=str(e),
+            )
+        except RequestValidationError as e:
+            return _render(
+                request,
+                "add.html",
+                title="Add Todo",
+                error=str(e.errors()),
             )
         todo.user_id = user_id
         storage.add(todo)
@@ -211,6 +243,14 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         todo = storage.get(todo_id, user_id=user_id)
         if todo is None:
             raise HTTPException(status_code=404, detail="Todo not found")
+        if not await verify_csrf_token(request):
+            return _render(
+                request,
+                "edit.html",
+                title="Edit Todo",
+                todo=todo,
+                error="Invalid CSRF token. Please try again.",
+            )
         if not title or not title.strip():
             return _render(
                 request,
@@ -218,6 +258,14 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
                 title="Edit Todo",
                 todo=todo,
                 error="Title is required",
+            )
+        if priority not in ("high", "medium", "low"):
+            return _render(
+                request,
+                "edit.html",
+                title="Edit Todo",
+                todo=todo,
+                error="Priority must be high, medium, or low",
             )
         update_kwargs = {
             "title": title,
@@ -236,7 +284,19 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
             )
         if due_clean is not None:
             update_kwargs["due"] = due_clean
-        storage.modify(todo_id, **update_kwargs)
+        elif due == "":
+            # Empty string means the user cleared the due date
+            update_kwargs["due"] = None
+        try:
+            storage.modify(todo_id, **update_kwargs)
+        except RequestValidationError as e:
+            return _render(
+                request,
+                "edit.html",
+                title="Edit Todo",
+                todo=todo,
+                error=str(e.errors()),
+            )
         return RedirectResponse(url="/todos", status_code=302)
 
     # ------------------------------------------------------------------
@@ -251,11 +311,16 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         user_id: str = Depends(_require_login),
     ) -> Response:
         """Mark a todo as complete. Returns partial HTML for HTMX or redirects."""
+        if not await verify_csrf_token(request):
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
         todo = storage.get(todo_id, user_id=user_id)
         if todo is None:
             raise HTTPException(status_code=404, detail="Todo not found")
         storage.complete(todo_id)
-        todo.completed = True
+        # Load the most recent instance to avoid stale object attributes
+        todo = storage.get(todo_id, user_id=user_id)
+        if todo is None:
+            raise HTTPException(status_code=404, detail="Todo not found")
 
         if request.headers.get("HX-Request"):
             return _render(
@@ -278,6 +343,8 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         user_id: str = Depends(_require_login),
     ) -> Response:
         """Delete a todo. Returns partial HTML for HTMX or redirects."""
+        if not await verify_csrf_token(request):
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
         todo = storage.get(todo_id, user_id=user_id)
         if todo is None:
             raise HTTPException(status_code=404, detail="Todo not found")
@@ -341,6 +408,16 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         user_id: str = Depends(_require_login),
     ) -> Response:
         """Update the authenticated user's profile."""
+        if not await verify_csrf_token(request):
+            _user_storage = get_user_storage(storage_path)
+            user = _user_storage.get_profile(user_id)
+            return _render(
+                request,
+                "profile_content.html",
+                title="Profile",
+                user=user or User(username=user_id),
+                error="Invalid CSRF token. Please try again.",
+            )
         user_storage = get_user_storage(storage_path)
         user = user_storage.get_by_id(user_id)
         if user is None:
@@ -380,6 +457,16 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         user_id: str = Depends(_require_login),
     ) -> Response:
         """Change the authenticated user's password."""
+        if not await verify_csrf_token(request):
+            user_storage = get_user_storage(storage_path)
+            user = user_storage.get_profile(user_id)
+            return _render(
+                request,
+                "profile_content.html",
+                title="Profile",
+                user=user,
+                error="Invalid CSRF token. Please try again.",
+            )
         user_storage = get_user_storage(storage_path)
         user = user_storage.get_by_id(user_id)
         if user is None:
@@ -429,6 +516,16 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         storage: TodoStorage = Depends(_storage),
     ) -> Response:
         """Delete the authenticated user's account and log them out."""
+        if not await verify_csrf_token(request):
+            user_storage = get_user_storage(storage_path)
+            user = user_storage.get_profile(user_id)
+            return _render(
+                request,
+                "profile_content.html",
+                title="Profile",
+                user=user,
+                error="Invalid CSRF token. Please try again.",
+            )
         user_storage = get_user_storage(storage_path)
         user = user_storage.get_by_id(user_id)
         if user is None:
@@ -449,9 +546,13 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         # Delete the user and all their todos
         user_storage.delete_user_with_todos(user_id, storage)
 
-        # Log out: delete the token cookie and redirect to login
-        response = RedirectResponse(url="/auth/login", status_code=302)
+        # Log out: delete the token cookie
+        delete_csrf_token_cookie(response := RedirectResponse(url="/auth/login", status_code=302))
         response.delete_cookie(key="token")
+
+        # For HTMX requests, render the login page directly instead of redirecting
+        if request.headers.get("HX-Request"):
+            return _render(request, "login.html", error=None)
         return response
 
 
