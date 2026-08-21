@@ -58,20 +58,26 @@ The system SHALL export user data as CSV.
 
 After writing every specs file, run `openspec validate "<name>"` before creating design or tasks. If validation reports no delta sections, rewrite the headers and re-validate. That rewrite is the exception to leaving an existing artifact file.
 
-**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
+**Input**: The argument after the propose command is the change name (kebab-case), OR a description of what the user wants to build. This workflow prompt itself is NOT a change description.
 
 **Steps**
 
 1. **Understand the request and clarify material ambiguity**
 
-   If no clear input is provided, ask the user (open-ended, no preset options):
-   > "What change do you want to work on? Describe what you want to build or fix."
+   **Empty invocation (no name, no description):** When the user ran propose with no change name and no description in the same message (only the slash command / this workflow text):
+   - Your FIRST reply MUST be only this open-ended question (no preset options):
+     > "What change do you want to work on? Describe what you want to build or fix."
+   - STOP after asking. Do not call any tools first — no read, glob, grep, bash, openspec, list, explore, or task.
+   - Do not "explore the project first" or skim README/specs to prepare. Wait for the user's description.
+   - Only after they reply with what to build or fix, derive a kebab-case name and continue.
+
+   If they already provided a kebab-case name or a natural-language description of the change, proceed from that.
 
    From their description, derive a kebab-case name (e.g., "add user authentication" → `add-user-auth`).
 
    **IMPORTANT**: Do NOT proceed without understanding what the user wants to build.
 
-   Do not run the project's tests, linters, or build, and do not fix existing project bugs. README and existing main specs are enough context. After creating the change directory, write the proposal artifact next — do not grep or edit package or test source.
+   Do not run the project's tests, linters, or build, and do not fix existing project bugs. After you know what they want, README and existing main specs are enough context. After creating the change directory, write the proposal artifact next — do not grep or edit package or test source.
 
    If the request contains ambiguity that would materially affect scope, externally observable behavior, compatibility, or acceptance criteria, ask the user before creating the change. For minor details, make a reasonable assumption and record it in the planning artifacts.
 
