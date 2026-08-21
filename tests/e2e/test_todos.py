@@ -17,7 +17,7 @@ async def _create_todo(page, title: str) -> None:
     await page.get_by_text(title, exact=False).first.wait_for(timeout=10_000)
 
 
-async def _row(page, title: str):
+def _row(page, title: str):
     """Return the table row containing the given todo title."""
     return page.locator("tr").filter(has_text=title).first
 
@@ -105,7 +105,7 @@ async def test_edit_todo_empty_title(page):
 
 async def _complete_control(page, title: str) -> str:
     """Return the actual text of the complete control on a row."""
-    row = _row(page, title)
+    row = await _row(page, title)
     # Inspect form actions on the row.
     forms = row.locator("form")
     count = await forms.count()

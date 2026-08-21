@@ -69,7 +69,9 @@ async def test_registration_with_invalid_data(page):
         "document.querySelector('form').submit(); }",
         csrf_token,
     )
-    assert "username must be at least 3 characters" in (await _get_text(page)).lower()
+    await page.wait_for_load_state("domcontentloaded")
+    error_text = (await page.locator(".error").text_content() or "").lower()
+    assert "username must be at least 3 characters" in error_text
 
 
 async def test_login_success(page):
