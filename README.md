@@ -1,6 +1,17 @@
 # snekdo
 
-A simple CLI todo list manager for Python.
+A simple todo list manager for Python. Built to evaluate open-weight models.
+
+Inference & Agentic Dev Stack:
+
+- vLLM
+- KAT-Coder-Dev (deprecated due to constant tool call loops)
+- BigBang (deprecated due to frequent rumination loops)
+- Nemotron 3.5 Lightning
+- OpenCode (custom config: https://github.com/leonfeng/opencode-config)
+- OpenSpec
+- [LocalSpec](https://github.com/leonfeng/LocalSpec)
+- Cursor (mostly used for consultation, customizing OpenCode and OpenSpec, and fixing my mistakes)
 
 ## Features
 
@@ -18,13 +29,13 @@ A simple CLI todo list manager for Python.
 ## Installation
 
 ```bash
-pip install -e .
+uv pip install -e .
 ```
 
 To use the REST API backend and web UI, install with the `api` extra:
 
 ```bash
-pip install -e ".[api]"
+uv pip install -e ".[api]"
 ```
 
 The `jinja2` package is included in the main dependencies and is required for
