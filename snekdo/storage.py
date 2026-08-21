@@ -1,14 +1,15 @@
-"""Fix storage.py - proper context manager implementation."""
+"""Storage layer for snekdo todos and users."""
 
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, List, Optional
 
-from snekdo.models import Todo
+from snekdo.auth import verify_password
+from snekdo.models import Todo, User
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class StorageError(Exception):
 class TodoStorage:
     """Manages reading and writing todos to a JSON file."""
 
-    def __init__(self, storage_path: Optional[str] = None) -> None:
+    def __init__(self, storage_path: str | None = None) -> None:
         if storage_path is not None:
             self.storage_path = Path(storage_path)
         else:
@@ -53,12 +54,18 @@ class TodoStorage:
                 fcntl.flock(f, fcntl.LOCK_UN)
         f.close()
 
-    def load(self) -> List[Todo]:
+    def load(self, user_id: str | None = None) -> list[Todo]:
         """Load all todos from the JSON file.
 
         Returns an empty list if the file does not exist or if the JSON is
         corrupted.  In the latter case a warning is logged so the API keeps
         working even with a bad storage file.
+
+        Args:
+            user_id: If provided, filter todos to only those belonging to this user.
+
+        Returns:
+            An empty list if the file does not exist.
         """
         if not self.storage_path.exists():
             return []
@@ -72,9 +79,12 @@ class TodoStorage:
                 e,
             )
             return []
-        return [Todo.from_dict(todo) for todo in data]
+        todos = [Todo.from_dict(todo) for todo in data]
+        if user_id is not None:
+            todos = [t for t in todos if t.user_id == user_id]
+        return todos
 
-    def save(self, todos: List[Todo]) -> None:
+    def save(self, todos: list[Todo]) -> None:
         """Save all todos to the JSON file."""
         self._ensure_dir()
         with self._open_file(self.storage_path, "w") as f:
@@ -86,19 +96,33 @@ class TodoStorage:
         todos.append(todo)
         self.save(todos)
 
-    def get(self, todo_id: str) -> Optional[Todo]:
+    def get(self, todo_id: str, user_id: str | None = None) -> Todo | None:
         """Find a todo by ID.
 
-        Returns None if not found.
-        """
-        return self.get_all().get(todo_id)
+        Args:
+            todo_id: The ID of the todo to find.
+            user_id: If provided, also filter by user.
 
-    def delete(self, todo_id: str) -> bool:
+        Returns:
+            The Todo if found, None otherwise.
+        """
+        todos = self.load(user_id=user_id)
+        for todo in todos:
+            if todo.id == todo_id:
+                return todo
+        return None
+
+    def delete(self, todo_id: str, user_id: str | None = None) -> bool:
         """Remove a todo by ID.
 
-        Returns True if the todo was found and deleted.
+        Args:
+            todo_id: The ID of the todo to delete.
+            user_id: If provided, also filter by user.
+
+        Returns:
+            True if the todo was found and deleted.
         """
-        todos = self.load()
+        todos = self.load(user_id=user_id)
         before = len(todos)
         todos = [t for t in todos if t.id != todo_id]
         if len(todos) == before:
@@ -106,12 +130,27 @@ class TodoStorage:
         self.save(todos)
         return True
 
-    def complete(self, todo_id: str) -> bool:
-        """Mark a todo as complete by ID.
+    def delete_all_user_todos(self, user_id: str) -> None:
+        """Remove all todos belonging to a user and persist the remaining todos.
 
-        Returns True if the todo was found and updated.
+        Args:
+            user_id: The ID of the user whose todos should be removed.
         """
         todos = self.load()
+        remaining = [t for t in todos if t.user_id != user_id]
+        self.save(remaining)
+
+    def complete(self, todo_id: str, user_id: str | None = None) -> bool:
+        """Mark a todo as complete by ID.
+
+        Args:
+            todo_id: The ID of the todo to complete.
+            user_id: If provided, also filter by user.
+
+        Returns:
+            True if the todo was found and updated.
+        """
+        todos = self.load(user_id=user_id)
         for todo in todos:
             if todo.id == todo_id:
                 todo.completed = True
@@ -119,21 +158,22 @@ class TodoStorage:
                 return True
         return False
 
-    def get_all(self) -> dict:
+    def get_all(self, user_id: str | None = None) -> dict:
         """Return all todos as a dict keyed by ID."""
-        return {todo.id: todo for todo in self.load()}
+        return {todo.id: todo for todo in self.load(user_id=user_id)}
 
-    def modify(self, todo_id: str, **kwargs) -> bool:
+    def modify(self, todo_id: str, user_id: str | None = None, **kwargs) -> bool:
         """Modify an existing todo by ID.
 
         Args:
             todo_id: The ID of the todo to modify.
+            user_id: If provided, also filter by user.
             **kwargs: Fields to update (title, description, due, priority).
 
         Returns:
             True if the todo was found and updated, False otherwise.
         """
-        todos = self.load()
+        todos = self.load(user_id=user_id)
         for todo in todos:
             if todo.id == todo_id:
                 # Update only the fields provided
@@ -145,11 +185,13 @@ class TodoStorage:
                     todo.due = kwargs["due"]
                 if "priority" in kwargs:
                     todo.priority = kwargs["priority"]
+                if "completed" in kwargs:
+                    todo.completed = kwargs["completed"]
                 self.save(todos)
                 return True
         return False
 
-    def filter_by_priority(self, priority: str) -> List[Todo]:
+    def filter_by_priority(self, priority: str) -> list[Todo]:
         """Filter todos by priority level.
 
         Args:
@@ -160,3 +202,240 @@ class TodoStorage:
         """
         todos = self.load()
         return [todo for todo in todos if todo.priority == priority]
+
+
+class UserStorage:
+    """Manages reading and writing users to a JSON file."""
+
+    def __init__(self, storage_path: str | None = None) -> None:
+        if storage_path is not None:
+            # Derive the users file path from the todos file path.
+            # If the path ends with 'todos.json', replace with 'users.json'.
+            path = Path(storage_path)
+            if path.name == "todos.json":
+                self.storage_path = path.with_name("users.json")
+            else:
+                self.storage_path = path.parent / "users.json"
+        else:
+            self.storage_path = Path.home() / ".snekdo" / "users.json"
+
+    def _ensure_dir(self) -> None:
+        """Create the storage directory if it does not exist."""
+        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+
+    @contextmanager
+    def _open_file(self, path: Path, mode: str) -> Iterator:
+        """Open a file with file locking for write operations."""
+        f = open(path, mode)
+        if "w" in mode:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                yield f
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+        else:
+            fcntl.flock(f, fcntl.LOCK_SH)
+            try:
+                yield f
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+        f.close()
+
+    def load(self) -> list[User]:
+        """Load all users from the JSON file.
+
+        Returns:
+            An empty list if the file does not exist.
+        """
+        if not self.storage_path.exists():
+            return []
+        with self._open_file(self.storage_path, "r") as f:
+            data = json.load(f)
+        return [User.from_dict(user) for user in data]
+
+    def save(self, users: list[User]) -> None:
+        """Save all users to the JSON file."""
+        self._ensure_dir()
+        with self._open_file(self.storage_path, "w") as f:
+            json.dump([user.to_dict() for user in users], f, indent=2)
+
+    def add(self, user: User) -> User:
+        """Add a new user and persist.
+
+        Args:
+            user: The user to add.
+
+        Returns:
+            The added user with its ID set.
+        """
+        users = self.load()
+        # Check for duplicate username
+        for existing in users:
+            if existing.username == user.username:
+                raise StorageError(f"Username '{user.username}' already exists")
+        users.append(user)
+        self.save(users)
+        return user
+
+    def get(self, username: str) -> User | None:
+        """Find a user by username.
+
+        Args:
+            username: The username to find.
+
+        Returns:
+            The User if found, None otherwise.
+        """
+        for user in self.load():
+            if user.username == username:
+                return user
+        return None
+
+    def get_by_id(self, user_id: str) -> User | None:
+        """Find a user by ID.
+
+        Args:
+            user_id: The user ID to find.
+
+        Returns:
+            The User if found, None otherwise.
+        """
+        for user in self.load():
+            if user.id == user_id:
+                return user
+        return None
+
+    def delete(self, username: str) -> bool:
+        """Remove a user by username.
+
+        Args:
+            username: The username to delete.
+
+        Returns:
+            True if the user was found and deleted.
+        """
+        users = self.load()
+        before = len(users)
+        users = [u for u in users if u.username != username]
+        if len(users) == before:
+            return False
+        self.save(users)
+        return True
+
+    def delete_user(self, user_id: str) -> bool:
+        """Remove a user by ID and persist the remaining users.
+
+        Args:
+            user_id: The ID of the user to delete.
+
+        Returns:
+            True if the user was found and deleted, False otherwise.
+        """
+        users = self.load()
+        before = len(users)
+        users = [u for u in users if u.id != user_id]
+        if len(users) == before:
+            return False
+        self.save(users)
+        return True
+
+    def delete_user_with_todos(
+        self, user_id: str, todo_storage: TodoStorage
+    ) -> bool:
+        """Remove a user by ID and all their todos in a single operation.
+
+        This method first removes all todos belonging to the user from the
+        todo storage, then removes the user record from the user storage.
+        This ensures that account deletion is atomic and does not leave
+        orphaned todos.
+
+        Args:
+            user_id: The ID of the user to delete.
+            todo_storage: The :class:`TodoStorage` instance to use for
+                removing the user's todos.
+
+        Returns:
+            True if the user was found and deleted, False otherwise.
+        """
+        todo_storage.delete_all_user_todos(user_id)
+        return self.delete_user(user_id)
+
+    def update_profile(
+        self,
+        user_id: str,
+        display_name: str | None = None,
+        email: str | None = None,
+    ) -> bool:
+        """Update the display name and/or email of a user.
+
+        Args:
+            user_id: The ID of the user to update.
+            display_name: New display name, or None to leave unchanged.
+            email: New email, or None to leave unchanged.
+
+        Returns:
+            True if the user was found and updated, False otherwise.
+        """
+        users = self.load()
+        for user in users:
+            if user.id == user_id:
+                if display_name is not None:
+                    user.display_name = display_name
+                if email is not None:
+                    user.email = email
+                self.save(users)
+                return True
+        return False
+
+    def update_password(
+        self,
+        user_id: str,
+        current_password: str,
+        new_password: str,
+    ) -> bool:
+        """Update the password of a user.
+
+        Args:
+            user_id: The ID of the user to update.
+            current_password: The current password for verification.
+            new_password: The new password to set.
+
+        Returns:
+            True if the user was found and the password was updated, False otherwise.
+
+        Raises:
+            StorageError: If the current password is incorrect.
+        """
+        from snekdo.auth import hash_password
+
+        users = self.load()
+        for user in users:
+            if user.id == user_id:
+                if not verify_password(current_password, user.password_hash):
+                    raise StorageError("Current password is incorrect")
+                user.password_hash = hash_password(new_password)
+                self.save(users)
+                return True
+        return False
+
+    def get_profile(self, user_id: str) -> User | None:
+        """Find a user by ID, returning the user without the password hash.
+
+        Args:
+            user_id: The user ID to find.
+
+        Returns:
+            The User if found, None otherwise.
+        """
+        user = self.get_by_id(user_id)
+        if user is not None:
+            # Return a copy without the password hash for profile displays
+            return User(
+                id=user.id,
+                username=user.username,
+                display_name=user.display_name,
+                email=user.email,
+                password_hash="",
+                created_at=user.created_at,
+            )
+        return None

@@ -34,6 +34,13 @@
         nav a:hover {
             color: #007bff;
         }
+        nav a.logout {
+            float: right;
+            color: #dc3545;
+        }
+        nav a.logout:hover {
+            color: #a71d2a;
+        }
         h1 {
             margin-top: 0;
             margin-bottom: 1rem;
@@ -147,6 +154,11 @@
             <a href="/">snekdo</a>
             <a href="/todos">Todos</a>
             <a href="/todos/add">Add New</a>
+            <a href="/profile">Profile</a>
+            <form method="post" action="/auth/logout" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="logout" style="background: none; border: none; color: #dc3545; cursor: pointer; text-decoration: none; font-weight: 600;">Logout</button>
+            </form>
         </nav>
         <h1>{{ title }}</h1>
         {% block content %}{% endblock %}

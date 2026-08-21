@@ -32,9 +32,9 @@ snekdo — a Python CLI todo list manager (single package `snekdo/`, tests in `t
 - `pull`: server is source of truth. `push`: local wins for existing, creates missing, deletes absent-on-local (only push/both).
 
 ## Running
-- Install: `pip install -e .` (CLI) or `pip install -e ".[api]"` (server). Tests: `pip install -e ".[test]"`.
-- Run tests: `pytest` (testpaths = tests, pythonpath = .).
-- Run CLI: `python -m snekdo --help` or `snekdo --help`.
+- Install: `uv pip install -e .` (CLI) or `uv pip install -e ".[api]"` (server). Tests: `uv pip install -e ".[test]"`.
+- Run tests: `uv run pytest` (testpaths = tests, pythonpath = .).
+- Run CLI: `uv run snekdo --help` or `snekdo --help`.
 - Run server: `snekdo serve` (default 127.0.0.1:8000).
 
 ## OpenSpec
@@ -48,3 +48,5 @@ snekdo — a Python CLI todo list manager (single package `snekdo/`, tests in `t
 - `fake_fcntl` is used only when `fcntl` is unavailable (e.g., Windows); on Linux real `fcntl.flock` is used.
 - `Todo.__post_init__` generates a nanoid ID if `id` is empty; `from_dict` preserves the stored ID.
 - `created_at` is stored as an ISO 8601 string; empty/missing parses to `datetime.min`.
+- The JWT signing key is sourced from the ``SNEKDO_JWT_SECRET_KEY`` environment variable. When unset, a random per-process key is generated so that no static hardcoded secret ships with the package. Multi-worker deployments must set ``SNEKDO_JWT_SECRET_KEY`` so all workers sign tokens with the same key.
+- CSRF tokens are stored in httponly cookies and included in state-changing forms. HTMX ``HX-Request`` requests and JSON requests bypass CSRF validation so the REST API and HTMX JSON paths are unaffected.

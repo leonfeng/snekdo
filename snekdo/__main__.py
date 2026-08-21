@@ -3,38 +3,66 @@
 from __future__ import annotations
 
 import argparse
+import json
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
 
 from snekdo.api import create_app
-from snekdo.api_client import ConnectionError, ServerHttpClient, ServerError, SyncSummary
-from snekdo.web import register_web_routes
+from snekdo.api_client import (
+    AuthenticationError,
+    ConnectionError,
+    ServerError,
+    ServerHttpClient,
+    SyncSummary,
+)
+from snekdo.due_date import validate_due_date
 from snekdo.models import Todo
 from snekdo.storage import StorageError, TodoStorage
+from snekdo.web import register_web_routes
+
+CREDENTIALS_PATH = Path.home() / ".snekdo" / "credentials.json"
 
 
-def validate_due_date(due_date: str) -> str:
-    """Validate a due date string.
+def _get_credentials_path(storage_path: Path | None = None) -> Path:
+    """Return the path to the credentials file.
 
-    Args:
-        due_date: The due date string to validate (YYYY-MM-DD format).
+    Uses the default ``~/.snekdo/credentials.json`` unless a custom
+    storage path is provided, in which case the credentials are stored
+    alongside the storage file.
+    """
+    if storage_path is not None:
+        return storage_path.parent / ".snekdo_credentials.json"
+    return CREDENTIALS_PATH
+
+
+def _read_credentials(credentials_path: Path) -> dict | None:
+    """Read the stored credentials from disk.
 
     Returns:
-        The validated due date string.
-
-    Raises:
-        ValueError: If the date format is invalid or the date is in the past.
+        The credentials dict with ``access_token`` and ``token_type``,
+        or ``None`` if the file does not exist.
     """
-    if due_date is None or due_date.strip() == "":
-        return ""
-    try:
-        parsed = datetime.strptime(due_date, "%Y-%m-%d")
-        if parsed.date() < datetime.now().date():
-            raise ValueError(f"Due date '{due_date}' cannot be in the past")
-        return due_date
-    except ValueError:
-        raise ValueError(f"Invalid due date format: '{due_date}'. Use YYYY-MM-DD format and a future date")
+    if not credentials_path.exists():
+        return None
+    with open(credentials_path) as f:
+        return json.load(f)
+
+
+def _write_credentials(
+    credentials_path: Path, access_token: str, token_type: str = "bearer"
+) -> None:
+    """Write credentials to disk."""
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(credentials_path, "w") as f:
+        json.dump({"access_token": access_token, "token_type": token_type}, f, indent=2)
+
+
+def _delete_credentials(credentials_path: Path) -> None:
+    """Delete the credentials file."""
+    if credentials_path.exists():
+        credentials_path.unlink()
 
 
 def _parse_created_at(created_at: str) -> datetime:
@@ -50,6 +78,7 @@ def _parse_created_at(created_at: str) -> datetime:
     except (ValueError, TypeError):
         return datetime.min
 
+
 def _truncate_title(title: str, max_width: int) -> str:
     """Truncate a title to fit within max_width, appending an ellipsis.
 
@@ -62,14 +91,15 @@ def _truncate_title(title: str, max_width: int) -> str:
     return title[: max_width - 3] + "..."
 
 
-
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
         prog="snekdo",
         description="A simple CLI todo list manager",
     )
-    parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
     parser.add_argument("--debug", action="store_true", help="Print debug information")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -79,53 +109,213 @@ def create_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--title", required=True, help="Title of the todo")
     add_parser.add_argument("--description", default="", help="Description of the todo")
     add_parser.add_argument("--due", help="Due date (e.g., 2024-12-31)")
-    add_parser.add_argument("--priority", default="medium", choices=["low", "medium", "high"], help="Priority level (low, medium, high)")
-    add_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    add_parser.add_argument(
+        "--priority",
+        default="medium",
+        choices=["low", "medium", "high"],
+        help="Priority level (low, medium, high)",
+    )
+    add_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # List command
     list_parser = subparsers.add_parser("list", help="List all todo items")
-    list_parser.add_argument("--status", choices=["all", "pending", "completed"], default="pending")
+    list_parser.add_argument(
+        "--status", choices=["all", "pending", "completed"], default="pending"
+    )
     list_parser.add_argument("--limit", type=int, help="Limit the number of results")
-    list_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="Filter by priority level")
-    list_parser.add_argument("--sort", default="created_at", choices=["created_at", "title", "priority", "completed"], help="Sort by field (created_at, title, priority, completed)")
-    list_parser.add_argument("--reverse", action="store_true", default=False, dest="reverse", help="Reverse the sort order")
-    list_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    list_parser.add_argument(
+        "--priority",
+        default=None,
+        choices=["low", "medium", "high"],
+        help="Filter by priority level",
+    )
+    list_parser.add_argument(
+        "--sort",
+        default="created_at",
+        choices=["created_at", "title", "priority", "completed"],
+        help="Sort by field (created_at, title, priority, completed)",
+    )
+    list_parser.add_argument(
+        "--reverse",
+        action="store_true",
+        default=False,
+        dest="reverse",
+        help="Reverse the sort order",
+    )
+    list_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Complete command
     complete_parser = subparsers.add_parser("complete", help="Mark a todo as complete")
     complete_parser.add_argument("todo_id", help="ID of the todo to complete")
-    complete_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    complete_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Delete command
     delete_parser = subparsers.add_parser("delete", help="Delete a todo")
     delete_parser.add_argument("todo_id", help="ID of the todo to delete")
-    delete_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    delete_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Modify command
     modify_parser = subparsers.add_parser("modify", help="Modify an existing todo")
     modify_parser.add_argument("todo_id", help="ID of the todo to modify")
     modify_parser.add_argument("--title", help="New title for the todo")
-    modify_parser.add_argument("--description", default=None, help="New description for the todo")
-    modify_parser.add_argument("--due", help="New due date for the todo (e.g., 2024-12-31)")
-    modify_parser.add_argument("--priority", default=None, choices=["low", "medium", "high"], help="New priority level")
-    modify_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    modify_parser.add_argument(
+        "--description", default=None, help="New description for the todo"
+    )
+    modify_parser.add_argument(
+        "--due", help="New due date for the todo (e.g., 2024-12-31)"
+    )
+    modify_parser.add_argument(
+        "--priority",
+        default=None,
+        choices=["low", "medium", "high"],
+        help="New priority level",
+    )
+    modify_parser.add_argument(
+        "--completed",
+        type=str,
+        default=None,
+        choices=["true", "false"],
+        help="Set the completed status (true or false)",
+    )
+    modify_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Show command
     show_parser = subparsers.add_parser("show", help="Show details of a todo item")
     show_parser.add_argument("todo_id", help="ID of the todo to show")
-    show_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    show_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Serve command
     serve_parser = subparsers.add_parser("serve", help="Start the FastAPI server")
-    serve_parser.add_argument("--host", default="127.0.0.1", help="Host to bind the server")
-    serve_parser.add_argument("--port", type=int, default=8000, help="Port to bind the server")
-    serve_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    serve_parser.add_argument(
+        "--host", default="127.0.0.1", help="Host to bind the server"
+    )
+    serve_parser.add_argument(
+        "--port", type=int, default=8000, help="Port to bind the server"
+    )
+    serve_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     # Sync command
-    sync_parser = subparsers.add_parser("sync", help="Synchronize with the FastAPI server")
-    sync_parser.add_argument("--server", default="http://127.0.0.1:8000", help="Server base URL")
-    sync_parser.add_argument("--direction", choices=["pull", "push", "both"], default="both", help="Sync direction")
-    sync_parser.add_argument("--storage", help="Path to the storage file", default=argparse.SUPPRESS)
+    sync_parser = subparsers.add_parser(
+        "sync", help="Synchronize with the FastAPI server"
+    )
+    sync_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    sync_parser.add_argument(
+        "--direction",
+        choices=["pull", "push", "both"],
+        default="both",
+        help="Sync direction",
+    )
+    sync_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
+
+    # Register command
+    register_parser = subparsers.add_parser("register", help="Register a new account")
+    register_parser.add_argument(
+        "--username", required=True, help="Username for the new account"
+    )
+    register_parser.add_argument(
+        "--password", required=True, help="Password for the new account"
+    )
+    register_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    register_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
+
+    # Login command
+    login_parser = subparsers.add_parser("login", help="Log in to an existing account")
+    login_parser.add_argument("--username", required=True, help="Username")
+    login_parser.add_argument("--password", required=True, help="Password")
+    login_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    login_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
+
+    # Logout command
+    logout_parser = subparsers.add_parser(
+        "logout", help="Log out and remove stored credentials"
+    )
+    logout_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
+
+    # Profile command
+    profile_parser = subparsers.add_parser("profile", help="View your profile")
+    profile_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    profile_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
+
+    # Profile update command
+    profile_update_parser = subparsers.add_parser(
+        "profile-update", help="Update your profile"
+    )
+    profile_update_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    profile_update_parser.add_argument(
+        "--display-name", default=None, help="New display name"
+    )
+    profile_update_parser.add_argument("--email", default=None, help="New email")
+    profile_update_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
+
+    # Change password command
+    change_password_parser = subparsers.add_parser(
+        "change-password", help="Change your password"
+    )
+    change_password_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    change_password_parser.add_argument(
+        "--current-password", required=True, help="Current password"
+    )
+    change_password_parser.add_argument(
+        "--new-password", required=True, help="New password"
+    )
+    change_password_parser.add_argument(
+        "--confirm-password", required=True, help="Confirm new password"
+    )
+    change_password_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
+
+    # Delete account command
+    delete_account_parser = subparsers.add_parser(
+        "delete-account", help="Delete your account on the server"
+    )
+    delete_account_parser.add_argument(
+        "--server", default="http://127.0.0.1:8000", help="Server base URL"
+    )
+    delete_account_parser.add_argument(
+        "--password", required=True, help="Your current password"
+    )
+    delete_account_parser.add_argument(
+        "--storage", help="Path to the storage file", default=argparse.SUPPRESS
+    )
 
     return parser
 
@@ -156,10 +346,15 @@ def main() -> int:
 def handle_command(args, parser) -> int:
     """Handle the parsed command line arguments."""
     if getattr(args, "debug", False):
+        _stderr = logging.StreamHandler(sys.stderr)
+        _stderr.setFormatter(logging.Formatter("DEBUG: %(message)s"))
+        _logger = logging.getLogger(__name__)
+        _logger.setLevel(logging.DEBUG)
+        _logger.addHandler(_stderr)
         storage_path = _get_storage_path(args)
         command = getattr(args, "command", None) or "unknown"
-        print(f"DEBUG: command={command}", file=sys.stderr)
-        print(f"DEBUG: storage_path={storage_path}", file=sys.stderr)
+        _logger.debug(f"command={command}")
+        _logger.debug(f"storage_path={storage_path}")
     try:
         if args.command == "add":
             return handle_add(args, parser)
@@ -177,6 +372,20 @@ def handle_command(args, parser) -> int:
             return handle_serve(args, parser)
         elif args.command == "sync":
             return handle_sync(args, parser)
+        elif args.command == "register":
+            return handle_register(args, parser)
+        elif args.command == "login":
+            return handle_login(args, parser)
+        elif args.command == "logout":
+            return handle_logout(args, parser)
+        elif args.command == "profile":
+            return handle_profile(args, parser)
+        elif args.command == "profile-update":
+            return handle_profile_update(args, parser)
+        elif args.command == "change-password":
+            return handle_change_password(args, parser)
+        elif args.command == "delete-account":
+            return handle_delete_account(args, parser)
         else:
             parser.print_help()
             return 0
@@ -192,7 +401,7 @@ def handle_add(args, parser) -> int:
     """Handle the add command."""
     storage = TodoStorage(storage_path=getattr(args, "storage", None))
     try:
-        due = validate_due_date(args.due) if args.due else ""
+        due = validate_due_date(args.due)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -228,23 +437,31 @@ def handle_list(args, parser) -> int:
     sort_key = args.sort
     valid_sort_fields = {"created_at", "title", "priority", "completed"}
     if sort_key not in valid_sort_fields:
-        print(f"Error: Invalid sort field '{sort_key}'. Valid sort fields are: created_at, title, priority, completed", file=sys.stderr)
+        print(
+            f"Error: Invalid sort field '{sort_key}'. "
+            f"Valid sort fields are: created_at, title, priority, completed",
+            file=sys.stderr,
+        )
         return 1
 
     # Sort by the specified field
     if sort_key == "created_at":
-        todos = sorted(todos, key=lambda x: _parse_created_at(x.created_at), reverse=args.reverse)
+        todos = sorted(
+            todos, key=lambda x: _parse_created_at(x.created_at), reverse=args.reverse
+        )
     elif sort_key == "title":
         todos = sorted(todos, key=lambda x: x.title.lower(), reverse=args.reverse)
     elif sort_key == "priority":
         priority_order = {"high": 0, "medium": 1, "low": 2}
-        todos = sorted(todos, key=lambda x: priority_order.get(x.priority, 1), reverse=args.reverse)
+        todos = sorted(
+            todos, key=lambda x: priority_order.get(x.priority, 1), reverse=args.reverse
+        )
     elif sort_key == "completed":
         todos = sorted(todos, key=lambda x: x.completed, reverse=args.reverse)
 
     # Limit results
     if args.limit:
-        todos = todos[:args.limit]
+        todos = todos[: args.limit]
 
     if not todos:
         print("No todos found.")
@@ -320,8 +537,18 @@ def handle_delete(args, parser) -> int:
 def handle_modify(args, parser) -> int:
     """Handle the modify command."""
     # Validate that at least one field is being updated
-    if args.title is None and args.description is None and args.due is None and args.priority is None:
-        print("Error: No fields to update. Use --title, --description, --due, or --priority to specify fields to update.")
+    if (
+        args.title is None
+        and args.description is None
+        and args.due is None
+        and args.priority is None
+        and getattr(args, "completed", None) is None
+    ):
+        print(
+            "Error: No fields to update. "
+            "Use --title, --description, --due, "
+            "--priority, or --completed to specify fields to update."
+        )
         return 1
 
     storage = TodoStorage(storage_path=getattr(args, "storage", None))
@@ -336,7 +563,7 @@ def handle_modify(args, parser) -> int:
         update_data["title"] = args.title
     if args.description is not None:
         update_data["description"] = args.description
-    if args.due is not None:
+    if args.due:
         try:
             update_data["due"] = validate_due_date(args.due)
         except ValueError as e:
@@ -344,6 +571,10 @@ def handle_modify(args, parser) -> int:
             return 1
     if args.priority is not None:
         update_data["priority"] = args.priority
+
+    completed = getattr(args, "completed", None)
+    if completed is not None:
+        update_data["completed"] = completed.lower() == "true"
 
     storage.modify(args.todo_id, **update_data)
     print(f"Updated todo: {todo.title}")
@@ -378,7 +609,10 @@ def handle_serve(args, parser) -> int:
     try:
         import uvicorn
     except ImportError:
-        print("Error: uvicorn is not installed. Install with: pip install uvicorn", file=sys.stderr)
+        print(
+            "Error: uvicorn is not installed. Install with: pip install uvicorn",
+            file=sys.stderr,
+        )
         return 1
 
     storage_path = _get_storage_path(args)
@@ -394,19 +628,25 @@ def handle_serve(args, parser) -> int:
 
 def handle_sync(args, parser) -> int:
     """Handle the sync command to synchronize with the FastAPI server."""
-    
 
     storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
     client = ServerHttpClient(base_url=args.server)
 
     try:
-        summary = _sync(client, storage_path, args.direction)
+        summary = _sync(
+            client, storage_path, args.direction, credentials_path=credentials_path
+        )
         print(summary)
         if summary.errors:
             for error in summary.errors:
                 print(f"Error: {error}", file=sys.stderr)
             return 1
         return 0
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please log in with `snekdo login`.", file=sys.stderr)
+        return 1
     except ConnectionError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -415,7 +655,190 @@ def handle_sync(args, parser) -> int:
         return 1
 
 
-def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncSummary:
+def handle_register(args, parser) -> int:
+    """Handle the register command by creating a new account on the server."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url=args.server)
+
+    try:
+        response = client._request(
+            "POST",
+            "/api/v1/auth/register",
+            data={"username": args.username, "password": args.password},
+            credentials_path=credentials_path,
+        )
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    # Store credentials
+    token_type = response.get("token_type", "bearer")
+    _write_credentials(credentials_path, response["access_token"], token_type)
+    print(f"Registered user: {args.username}")
+    print(f"Token stored to: {credentials_path}")
+    return 0
+
+
+def handle_login(args, parser) -> int:
+    """Handle the login command by authenticating and storing the access token."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url=args.server)
+
+    try:
+        response = client._request(
+            "POST",
+            "/api/v1/auth/login",
+            data={"username": args.username, "password": args.password},
+            credentials_path=credentials_path,
+        )
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    # Store credentials
+    token_type = response.get("token_type", "bearer")
+    _write_credentials(credentials_path, response["access_token"], token_type)
+    print(f"Logged in as: {args.username}")
+    print(f"Token stored to: {credentials_path}")
+    return 0
+
+
+def handle_logout(args, parser) -> int:
+    """Handle the logout command by removing stored credentials."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    _delete_credentials(credentials_path)
+    print(f"Logged out. Credentials removed from: {credentials_path}")
+    return 0
+
+
+def handle_profile(args, parser) -> int:
+    """Handle the profile command by fetching the current user's profile."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url=args.server)
+
+    try:
+        profile = client.get_profile(credentials_path=credentials_path)
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please log in with `snekdo login`.", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"ID: {profile.get('id', '')}")
+    print(f"Username: {profile.get('username', '')}")
+    print(f"Display Name: {profile.get('display_name', '')}")
+    print(f"Email: {profile.get('email', '')}")
+    print(f"Created At: {profile.get('created_at', '')}")
+    return 0
+
+
+def handle_profile_update(args, parser) -> int:
+    """Handle the profile-update command by updating the current user's profile."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url=args.server)
+
+    try:
+        response = client.update_profile(
+            display_name=args.display_name,
+            email=args.email,
+            credentials_path=credentials_path,
+        )
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please log in with `snekdo login`.", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"Display Name: {response.get('display_name', '')}")
+    print(f"Email: {response.get('email', '')}")
+    print("Profile updated successfully.")
+    return 0
+
+
+def handle_change_password(args, parser) -> int:
+    """Handle the change-password command by changing the current user's password."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url=args.server)
+
+    try:
+        response = client.change_password(
+            current_password=args.current_password,
+            new_password=args.new_password,
+            confirm_password=args.confirm_password,
+            credentials_path=credentials_path,
+        )
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please log in with `snekdo login`.", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"Message: {response.get('message', 'Password changed successfully.')}")
+    return 0
+
+
+def handle_delete_account(args, parser) -> int:
+    """Handle the delete-account command by deleting the current user's account."""
+    storage_path = _get_storage_path(args)
+    credentials_path = _get_credentials_path(storage_path)
+    client = ServerHttpClient(base_url=args.server)
+
+    try:
+        client.delete_account(
+            password=args.password,
+            credentials_path=credentials_path,
+        )
+    except AuthenticationError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        print("Please check your password.", file=sys.stderr)
+        return 1
+    except ConnectionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ServerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    # Remove stored credentials on success
+    _delete_credentials(credentials_path)
+    print("Account deleted successfully.")
+    print(f"Credentials removed from: {credentials_path}")
+    return 0
+
+
+def _sync(
+    client: ServerHttpClient,
+    storage_path: Path,
+    direction: str,
+    credentials_path: Path | None = None,
+) -> SyncSummary:
     """Synchronize local storage with the server.
 
     Args:
@@ -434,7 +857,7 @@ def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncS
     errors: list[str] = []
 
     try:
-        server_todos = client.get_todos()
+        server_todos = client.get_todos(credentials_path=credentials_path)
     except (ConnectionError, ServerError) as e:
         errors.append(f"Failed to fetch todos from server: {e}")
         summary.errors = errors
@@ -461,6 +884,7 @@ def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncS
                         description=local_todo.description,
                         due=local_todo.due or None,
                         priority=local_todo.priority,
+                        credentials_path=credentials_path,
                     )
                     summary.pushed += 1
                 except (ConnectionError, ServerError) as e:
@@ -474,6 +898,8 @@ def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncS
                         description=local_todo.description,
                         due=local_todo.due or None,
                         priority=local_todo.priority,
+                        completed=local_todo.completed,
+                        credentials_path=credentials_path,
                     )
                     summary.updated += 1
                 except (ConnectionError, ServerError) as e:
@@ -484,7 +910,7 @@ def _sync(client: ServerHttpClient, storage_path: Path, direction: str) -> SyncS
         for server_id in server_todo_map:
             if server_id not in local_todo_map:
                 try:
-                    client.delete_todo(server_id)
+                    client.delete_todo(server_id, credentials_path=credentials_path)
                     summary.deleted += 1
                 except (ConnectionError, ServerError) as e:
                     errors.append(f"Failed to delete todo {server_id}: {e}")

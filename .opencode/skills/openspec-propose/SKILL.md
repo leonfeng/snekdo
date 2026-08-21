@@ -7,7 +7,7 @@ compatibility: Requires openspec CLI.
 metadata:
   author: openspec
   version: "1.0"
-  generatedBy: "1.8.0"
+  generatedBy: "localspec-overlay"
 ---
 
 Propose a new change - create the change and generate all artifacts in one step.
@@ -16,7 +16,7 @@ Propose a new change - create the change and generate all artifacts in one step.
 
 I'll create a change with the artifacts your schema defines. With the default spec-driven schema that is:
 - proposal.md (what & why)
-- `specs/<capability-path>/spec.md` (what the system must do - a delta, not the main spec)
+- `specs/<capability-path>/spec.md` (a delta: `## ADDED/MODIFIED/REMOVED/RENAMED Requirements`, never `## Requirements`)
 - design.md (how)
 - tasks.md (implementation steps)
 
@@ -26,22 +26,58 @@ When the user is ready to implement, they must start the apply workflow explicit
 
 ---
 
-**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
-**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
+**Delta spec format:** Change specs under `specs/` are deltas. `openspec validate` rejects a change spec that uses `## Requirements`. That header belongs only in `openspec/specs/<capability-path>/spec.md` after archive.
+
+Copy the specs `template` headers verbatim. Use only the operation headers that apply:
+- `## ADDED Requirements`
+- `## MODIFIED Requirements`
+- `## REMOVED Requirements`
+- `## RENAMED Requirements`
+
+Do not copy a main spec and keep its `## Requirements` heading.
+
+Wrong:
+```
+## Requirements
+### Requirement: Export data
+```
+
+Right:
+```
+## ADDED Requirements
+
+### Requirement: Export data
+The system SHALL export user data as CSV.
+
+#### Scenario: Successful export
+- **WHEN** the user exports
+- **THEN** a CSV file downloads
+```
+
+After writing every specs file, run `openspec validate "<name>"` before creating design or tasks. If validation reports no delta sections, rewrite the headers and re-validate. That rewrite is the exception to leaving an existing artifact file.
+
+**Input**: The argument after the propose command is the change name (kebab-case), OR a description of what the user wants to build. This workflow prompt itself is NOT a change description.
 
 **Steps**
 
 1. **Understand the request and clarify material ambiguity**
 
-   If no clear input is provided, ask the user (open-ended, no preset options):
-   > "What change do you want to work on? Describe what you want to build or fix."
+   **Empty invocation (no name, no description):** When the user ran propose with no change name and no description in the same message (only the slash command / this workflow text):
+   - Your FIRST reply MUST be only this open-ended question (no preset options):
+     > "What change do you want to work on? Describe what you want to build or fix."
+   - STOP after asking. Do not call any tools first — no read, glob, grep, bash, openspec, list, explore, or task.
+   - Do not "explore the project first" or skim README/specs to prepare. Wait for the user's description.
+   - Only after they reply with what to build or fix, derive a kebab-case name and continue.
+
+   If they already provided a kebab-case name or a natural-language description of the change, proceed from that.
 
    From their description, derive a kebab-case name (e.g., "add user authentication" → `add-user-auth`).
 
    **IMPORTANT**: Do NOT proceed without understanding what the user wants to build.
 
-   Do not run the project's tests, linters, or build, and do not fix existing project bugs. README and existing main specs are enough context. After creating the change directory, write the proposal artifact next — do not grep or edit package or test source.
+   Do not run the project's tests, linters, or build, and do not fix existing project bugs. After you know what they want, README and existing main specs are enough context. After creating the change directory, write the proposal artifact next — do not grep or edit package or test source.
 
    If the request contains ambiguity that would materially affect scope, externally observable behavior, compatibility, or acceptance criteria, ask the user before creating the change. For minor details, make a reasonable assumption and record it in the planning artifacts.
 
@@ -51,7 +87,7 @@ When the user is ready to implement, they must start the apply workflow explicit
 
    **Use a different schema only if the user:**
    - Explicitly requests a specific schema by name → use `--schema <schema-name>`
-   - Asks to "show workflows" or asks "what workflows" exist → resolve the authoritative root by running `openspec context --json` from the current working directory. If the user explicitly selected a registered store, use `openspec context --json --store "<store-id>"`. Then run `openspec schemas --json` with its working directory set to the returned `root.path` and let them choose. This preserves roots selected by a local `store:` pointer or the global `defaultStore`; `schemas` does not accept `--store`. If context reports only `no_openspec_root`, run `openspec schemas --json` from the current working directory instead. Do not use this fallback for invalid or unavailable stores.
+   - Asks to "show workflows" or asks "what workflows" exist → resolve the authoritative root by running `openspec context --json` from the current working directory. If the user explicitly selected a registered store, use `openspec context --json --store "<store-id>"`. Then run `openspec schemas --json` with its working directory set to the returned `root.path` and let them choose. This preserves roots selected by a local `store:` pointer or the global `defaultStore`; when a registered store was explicitly selected, append `--store "<store-id>"` to `openspec schemas --json` as well. If context reports only `no_openspec_root`, run `openspec schemas --json` from the current working directory instead. Do not use this fallback for invalid or unavailable stores.
 
    Otherwise, omit `--schema` to preserve the configured default.
 
@@ -100,10 +136,11 @@ When the user is ready to implement, they must start the apply workflow explicit
         - `dependencies`: Completed artifacts to read for context
       - Read any completed dependency files for context - always re-read them from disk, even if you saw them earlier in the conversation (the user may have edited them)
       - If the `instruction` field delegates creation to a specific skill or command, invoke it to produce the artifact instead of writing the file yourself, then verify the artifact file exists at `resolvedOutputPath`
-      - If the file at `resolvedOutputPath` already exists, leave it. Do not rewrite it.
+      - If the file at `resolvedOutputPath` already exists, leave it. Do not rewrite it. Exception: a specs file that failed `openspec validate` for missing delta sections MUST be rewritten with `## ADDED/MODIFIED/REMOVED/RENAMED Requirements` headers.
       - Otherwise create the artifact file using `template` as the structure and write it to `resolvedOutputPath`. If `resolvedOutputPath` is a glob, follow `instruction` to choose the concrete file path
       - Apply `context` and `rules` as constraints - but do NOT copy them into the file
       - Show brief progress: "Created <artifact-id>"
+      - If this artifact is `specs`, run `openspec validate "<name>"` before creating the next artifact. If it reports no delta sections, rewrite the headers first.
 
    b. **Continue until every artifact in the required set exists (not just `apply.requires`)**
       - After creating each artifact, re-run `openspec status --change "<name>" --json`
@@ -130,7 +167,7 @@ After completing all artifacts, summarize:
 - Change name and location
 - List of artifacts created with brief descriptions, plus any conditional artifact you skipped and why
 - What's ready: "All artifacts needed for implementation are ready."
-- Prompt: "The artifacts are ready for review. When you are ready, run `/opsx-apply`." That line is for the user. Do not invoke apply, load an apply skill, or edit project code after this summary.
+- Prompt: "The artifacts are ready for review. When you are ready, run `/openspec-apply-change`." That line is for the user. Do not invoke apply, load an apply skill, or edit project code after this summary.
 
 **Artifact Creation Guidelines**
 
@@ -139,6 +176,7 @@ After completing all artifacts, summarize:
 - The schema defines what each artifact should contain - follow it
 - Read dependency artifacts for context before creating new ones
 - Use `template` as the structure for your output file - fill in its sections
+- Change specs are deltas: copy `template` headers verbatim (`## ADDED Requirements`, `## MODIFIED Requirements`, `## REMOVED Requirements`, `## RENAMED Requirements`). Never write `## Requirements` in a change spec
 - **IMPORTANT**: `context` and `rules` are constraints for YOU, not content for the file
   - Do NOT copy `<context>`, `<rules>`, `<project_context>` blocks into the artifact
   - These guide what you write, but should never appear in the output
@@ -146,7 +184,7 @@ After completing all artifacts, summarize:
 **Guardrails**
 - The request that invoked this workflow authorizes planning only. Any implementation or apply instruction in that request does not carry forward. Do NOT implement the change, start the apply workflow, or edit project code during this workflow. After presenting the artifacts, stop. Wait for a new user request after the artifacts are presented. Do not start the apply workflow yourself.
 - Do not run tests, linters, or builds. Do not grep or edit package or test source to investigate failures
-- Do not invoke `/opsx-apply`, an apply skill, or any apply slash command in this conversation
+- Do not invoke `/openspec-apply-change`, an apply skill, or any apply slash command in this conversation
 - If an artifact file already exists at `resolvedOutputPath`, do not rewrite it
 - After status shows the required set is complete, print the summary and stop
 - Create every artifact the apply phase transitively depends on, not just the ids listed in `apply.requires`

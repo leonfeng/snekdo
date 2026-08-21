@@ -1,0 +1,3 @@
+change: fix-profile-form-duplication
+schema: spec-driven
+skip_specs: true

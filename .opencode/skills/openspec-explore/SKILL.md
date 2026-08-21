@@ -7,18 +7,48 @@ compatibility: Requires openspec CLI.
 metadata:
   author: openspec
   version: "1.0"
-  generatedBy: "1.8.0"
+  generatedBy: "localspec-overlay"
 ---
 
-Enter explore mode. Investigate when it helps, then reply. Your think block is hidden — the user only sees the message you write after thinking.
+Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
 **IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. Do not implement in this conversation even if they say "fix it." You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing. For a new change, scaffold it first as described below.
 
-Do not run the test suite, linters, or the app in a loop. A single command is enough to understand a failure. If a shell command already completed, do not run it again — repeating `pytest`, `python -c`, grep, or ls is a loop: stop and use the previous result. After you have answered, stop. Do not invoke apply, archive, or sync from explore. Do not cat the whole repository. If there is no topic, read `openspec list --json` and offer 2–4 directions, then wait. Close the think block and write a visible reply before you hit the output token limit; repeating "let me present my findings" is a loop.
+Do not run the test suite, linters, or the app in a loop. A single command is enough to understand a failure. If a shell command already completed, do not run it again — repeating `pytest`, `python -c`, grep, or ls is a loop: stop and use the previous result. After you have answered, stop. Do not invoke apply, archive, or sync from explore.
 
 **This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
 
-**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
+
+**Delta spec format:** Change specs under `specs/` are deltas. `openspec validate` rejects a change spec that uses `## Requirements`. That header belongs only in `openspec/specs/<capability-path>/spec.md` after archive.
+
+Copy the specs `template` headers verbatim. Use only the operation headers that apply:
+- `## ADDED Requirements`
+- `## MODIFIED Requirements`
+- `## REMOVED Requirements`
+- `## RENAMED Requirements`
+
+Do not copy a main spec and keep its `## Requirements` heading.
+
+Wrong:
+```
+## Requirements
+### Requirement: Export data
+```
+
+Right:
+```
+## ADDED Requirements
+
+### Requirement: Export data
+The system SHALL export user data as CSV.
+
+#### Scenario: Successful export
+- **WHEN** the user exports
+- **THEN** a CSV file downloads
+```
+
+After writing every specs file, run `openspec validate "<name>"` before creating design or tasks. If validation reports no delta sections, rewrite the headers and re-validate. That rewrite is the exception to leaving an existing artifact file.
 
 ---
 
@@ -113,7 +143,7 @@ If the user asks you to capture the exploration as a new change, transition seam
 
 1. Run `openspec new change "<name>"` (with `--store <id>` when applicable) before creating any artifacts. Never create a new change directory under `openspec/changes/` by hand; the CLI scaffold creates required metadata such as `.openspec.yaml`. Keep the selected `--store <id>` on every applicable follow-up `status` and `instructions` command.
 2. Run `openspec status --change "<name>" --json` (append the confirmed `--store "<id>"` only for a registered standalone store), then process the requested artifacts in dependency order. For each requested artifact that is `ready`, run `openspec instructions "<artifact-id>" --change "<name>" --json` (append the confirmed `--store "<id>"` only for a registered standalone store). Before creating a requested artifact, evaluate any condition in its own `instruction` against the explored change; record a deliberate skip instead when the condition does not apply. If a requested artifact is blocked by a direct prerequisite the user did not request, run `openspec instructions "<prerequisite-id>" --change "<name>" --json` (append the confirmed `--store "<id>"` only for a registered standalone store) for that prerequisite whether it is `ready` or `blocked`. If its own `instruction` states a condition, evaluate that condition against the explored change and record a deliberate skip only when the condition does not apply. If the condition applies, or the prerequisite is not conditional, treat it as a normal prerequisite and ask before expanding the capture. Do not create an unrequested prerequisite unless the user approves.
-3. Follow the returned `template` and `instruction` fields. Read completed dependency files listed in `dependencies`, and apply `context` and `rules` as constraints without copying them into the artifact. If the instruction delegates creation to a specific skill or command, invoke it; otherwise write the artifact to `resolvedOutputPath`, using the instruction to choose a concrete path when it is a glob. Verify that the selected concrete output exists.
+3. Follow the returned `template` and `instruction` fields. Read completed dependency files listed in `dependencies`, and apply `context` and `rules` as constraints without copying them into the artifact. If the instruction delegates creation to a specific skill or command, invoke it; otherwise write the artifact to `resolvedOutputPath`, using the instruction to choose a concrete path when it is a glob. Verify that the selected concrete output exists. When the artifact is a change spec, copy delta headers from `template` (`## ADDED/MODIFIED/REMOVED/RENAMED Requirements`) — never `## Requirements` — then run `openspec validate "<name>"` before capturing the next artifact.
 4. After creating each artifact, re-run `openspec status --change "<name>" --json` (append the confirmed `--store "<id>"` only for a registered standalone store) and continue until every requested artifact is `done`, `skipped`, or was deliberately skipped because its own `instruction` stated a condition that did not apply. Tell the user about a deliberate conditional skip, remember it, and do not reconsider it. Dependencies are enablers, not gates: if a requested artifact is still `blocked` only because you deliberately skipped a conditional prerequisite, run `openspec instructions "<artifact-id>" --change "<name>" --json` (append the confirmed `--store "<id>"` only for a registered standalone store) despite the blocked status, then create it using step 3 only when those recorded conditional skips are its sole missing dependencies. If a requested artifact is blocked by a prerequisite the user did not ask to capture and cannot be conditionally skipped, explain that dependency and ask before expanding the capture.
 
 Capture the artifact(s) the user requested without asking them to invoke another workflow command. If they asked only to start a change, stop after scaffolding and show its status.
@@ -160,7 +190,7 @@ If the user mentions a change or you detect one is relevant:
 - Produce a specific artifact
 - Reach a conclusion
 - Stay on topic if a tangent is valuable
-- Write a long exploration *to the user* if it helps — but never substitute a long think block for a reply
+- Be brief (this is thinking time)
 
 ---
 
@@ -222,7 +252,7 @@ You: [reads codebase]
 
 **User is stuck mid-implementation:**
 ```
-User: /opsx-explore add-auth-system
+User: /openspec-explore add-auth-system
       The OAuth integration is more complex than expected
 
 You: [reads change artifacts]
@@ -304,8 +334,7 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Don't start other workflows** - Do not invoke apply, archive, or sync from explore
 - **Stop after answering** - Once you have explained the issue or offered next steps, wait for the user
 - **Don't fake understanding** - If something is unclear, dig deeper
-- **Don't ruminate** - If you already have enough to answer, stop thinking and answer. Do not re-read files you already have.
-- **Don't dump the repo** - No topic means ask, not ingest every file.
+- **Don't rush** - Discovery is thinking time, not task time
 - **Don't force structure** - Let patterns emerge naturally
 - **Don't auto-capture** - Offer to save insights, don't just do it
 - **Don't manually scaffold changes** - Never create a new change directory under `openspec/changes/` by hand. Always use `openspec new change "<name>"` (with `--store <id>` when applicable) so required metadata such as `.openspec.yaml` is created before writing artifacts.
