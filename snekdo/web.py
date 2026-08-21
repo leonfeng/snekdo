@@ -515,7 +515,7 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         user_id: str = Depends(_require_login),
         storage: TodoStorage = Depends(_storage),
     ) -> Response:
-        """Delete the authenticated user's account and log them out."""
+        """Delete the authenticated user's account and show confirmation page."""
         if not await verify_csrf_token(request):
             user_storage = get_user_storage(storage_path)
             user = user_storage.get_profile(user_id)
@@ -546,13 +546,12 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         # Delete the user and all their todos
         user_storage.delete_user_with_todos(user_id, storage)
 
-        # Log out: delete the token cookie
-        delete_csrf_token_cookie(response := RedirectResponse(url="/auth/login", status_code=302))
-        response.delete_cookie(key="token")
-
-        # For HTMX requests, render the login page directly instead of redirecting
+        # For HTMX requests, render the confirmation page directly
         if request.headers.get("HX-Request"):
-            return _render(request, "login.html", error=None)
+            return _render(request, "confirmation.html", error=None)
+        # For regular requests, redirect to confirmation page
+        response = RedirectResponse(url="/confirmation", status_code=302)
+        response.delete_cookie(key="token")
         return response
 
 

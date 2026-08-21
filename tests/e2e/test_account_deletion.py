@@ -54,14 +54,16 @@ async def test_delete_account_cancel(page):
 
 
 async def test_delete_account_success(page):
-    """Deleting with correct password removes the account and redirects to login."""
+    """Deleting with correct password shows confirmation page and redirects to login."""
     await page.goto(f"{BASE_URL}/profile")
     await _htmx_submit(page, 'form[hx-post="/profile/delete"]', '/profile/delete', {
         'current_password': 'password123',
     })
     await page.wait_for_timeout(500)
-    # After successful deletion, the page should show the login page content
-    assert "Login" in await _get_text(page)
+    # After successful deletion, the page should show the confirmation page
+    content = await page.evaluate('document.body.innerHTML')
+    assert "Account Deleted" in content
+    assert "Your account has been successfully deleted" in content
 
 
 async def test_account_no_longer_accessible(page):
@@ -75,3 +77,15 @@ async def test_account_no_longer_accessible(page):
     await page.goto(f"{BASE_URL}/profile")
     await page.wait_for_url(f"{BASE_URL}/auth/login")
     assert "Login" in await _get_text(page)
+
+
+async def test_confirmation_page_visible(page):
+    """Confirmation page is shown after successful account deletion."""
+    await page.goto(f"{BASE_URL}/profile")
+    await _htmx_submit(page, 'form[hx-post="/profile/delete"]', '/profile/delete', {
+        'current_password': 'password123',
+    })
+    await page.wait_for_timeout(500)
+    # Confirmation page should be visible
+    assert "Account Deleted" in await page.locator('body').text_content()
+    assert "Your account has been successfully deleted" in await page.locator('body').text_content()

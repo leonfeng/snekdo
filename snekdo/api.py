@@ -298,6 +298,11 @@ def create_app(storage_path: str | None = None) -> FastAPI:
 
         return MessageResponse(message="Account deleted successfully")
 
+    @app.get("/api/v1/confirmation", response_model=MessageResponse)
+    async def confirmation_page() -> MessageResponse:
+        """Return the account deletion confirmation page."""
+        return MessageResponse(message="Account deleted successfully")
+
     @app.get("/api/v1/todos", response_model=list[TodoResponse])
     async def list_todos(
         storage: TodoStorage = Depends(_storage),
