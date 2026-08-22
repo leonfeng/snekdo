@@ -1,5 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
+<details id="completed-todos-collapse">
+    <summary>
+        <span id="completed-todos-count">
+            {% set completed_count = 0 %}
+            {% for t in todos %}
+                {% if t.completed %}
+                    {% set completed_count = completed_count + 1 %}
+                {% endif %}
+            {% endfor %}
+            {{ completed_count }} completed todos
+        </span>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="caret-icon" fill="currentColor" aria-hidden="true">
+            <path d="M7.247 4.147L.668 12.047a.5.5 0 0 0 .704.708l5.762-2.238L8 13.783l1.25-4.995a.5.5 0 0 0-.704-.708L7.247 4.147z"/>
+        </svg>
+    </summary>
+    <div class="collapsed-content">
+        <p>{{ completed_count }} completed todos</p>
+        <ul>
+            {% for todo in todos %}
+            {% if todo.completed %}
+            <li>
+                <a href="/todos/{{ todo.id }}">{{ todo.title }}</a> ({{ todo.id[:8] }})
+            </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+</details>
+
 <table>
     <thead>
         <tr>

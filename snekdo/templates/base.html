@@ -74,6 +74,14 @@
             text-decoration: none;
             margin-right: 0.25rem;
         }
+        .caret-icon {
+            margin-left: 0.25rem;
+            transition: transform 0.3s ease;
+            vertical-align: middle;
+        }
+        .details[open] .caret-icon {
+            transform: rotate(180deg);
+        }
         .btn:hover {
             background: #0056b3;
         }
