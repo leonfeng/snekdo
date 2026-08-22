@@ -1,4 +1,13 @@
-"""Storage layer for snekdo todos and users."""
+"""Storage layer for snekdo todos and users.
+
+Supports both JSON file storage and SQLite database backend.
+
+Example:
+    >>> from snekdo.storage import TodoStorage
+    >>> # JSON storage (default)
+    >>> storage = TodoStorage()  # uses ~/.snekdo/todos.json
+    >>> # SQLite storage
+    >>> storage = TodoStorage(storage_type="sqlite")  # uses ~/.snekdo/todos.db
 
 from __future__ import annotations
 
@@ -10,6 +19,7 @@ from pathlib import Path
 
 from snekdo.auth import verify_password
 from snekdo.models import Todo, User
+from snekdo.storage_sqlite import TodoStorageSQLite
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +34,23 @@ class StorageError(Exception):
 
 
 class TodoStorage:
-    """Manages reading and writing todos to a JSON file."""
+    """Manages reading and writing todos to a JSON file or SQLite database."""
 
-    def __init__(self, storage_path: str | None = None) -> None:
+    def __init__(
+        self,
+        storage_path: str | None = None,
+        storage_type: str = "json",
+    ) -> None:
+        self.storage_type = storage_type
         if storage_path is not None:
             self.storage_path = Path(storage_path)
         else:
             self.storage_path = Path.home() / ".snekdo" / "todos.json"
+
+        if storage_type == "sqlite":
+            self._sqlite_backend = TodoStorageSQLite(storage_path=str(self.storage_path))
+        else:
+            self._sqlite_backend = None
 
     def _ensure_dir(self) -> None:
         """Create the storage directory if it does not exist."""
@@ -55,7 +75,7 @@ class TodoStorage:
         f.close()
 
     def load(self, user_id: str | None = None) -> list[Todo]:
-        """Load all todos from the JSON file.
+        """Load all todos from the JSON file or SQLite database.
 
         Returns an empty list if the file does not exist or if the JSON is
         corrupted.  In the latter case a warning is logged so the API keeps
@@ -67,6 +87,9 @@ class TodoStorage:
         Returns:
             An empty list if the file does not exist.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.load(user_id=user_id)
+        
         if not self.storage_path.exists():
             return []
         try:
@@ -85,13 +108,20 @@ class TodoStorage:
         return todos
 
     def save(self, todos: list[Todo]) -> None:
-        """Save all todos to the JSON file."""
+        """Save all todos to the JSON file or SQLite database."""
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            self._sqlite_backend.save(todos)
+            return
+        
         self._ensure_dir()
         with self._open_file(self.storage_path, "w") as f:
             json.dump([todo.to_dict() for todo in todos], f, indent=2)
 
     def add(self, todo: Todo) -> None:
         """Append a todo and persist."""
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            self._sqlite_backend.add(todo)
+            return
         todos = self.load()
         todos.append(todo)
         self.save(todos)
@@ -106,6 +136,8 @@ class TodoStorage:
         Returns:
             The Todo if found, None otherwise.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.get(todo_id=todo_id, user_id=user_id)
         todos = self.load(user_id=user_id)
         for todo in todos:
             if todo.id == todo_id:
@@ -122,6 +154,8 @@ class TodoStorage:
         Returns:
             True if the todo was found and deleted.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.delete(todo_id=todo_id, user_id=user_id)
         todos = self.load(user_id=user_id)
         before = len(todos)
         todos = [t for t in todos if t.id != todo_id]
@@ -150,6 +184,8 @@ class TodoStorage:
         Returns:
             True if the todo was found and updated.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.complete(todo_id=todo_id, user_id=user_id)
         todos = self.load(user_id=user_id)
         for todo in todos:
             if todo.id == todo_id:
@@ -168,11 +204,13 @@ class TodoStorage:
         Args:
             todo_id: The ID of the todo to modify.
             user_id: If provided, also filter by user.
-            **kwargs: Fields to update (title, description, due, priority).
+            **kwargs: Fields to update (title, description, due, priority, completed).
 
         Returns:
             True if the todo was found and updated, False otherwise.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.modify(todo_id=todo_id, user_id=user_id, **kwargs)
         todos = self.load(user_id=user_id)
         for todo in todos:
             if todo.id == todo_id:
@@ -205,7 +243,29 @@ class TodoStorage:
 
 
 class UserStorage:
-    """Manages reading and writing users to a JSON file."""
+    """Manages reading and writing users to a JSON file or SQLite database."""
+
+    def __init__(
+        self,
+        storage_path: str | None = None,
+        storage_type: str = "json",
+    ) -> None:
+        self.storage_type = storage_type
+        if storage_path is not None:
+            # Derive the users file path from the todos file path.
+            # If the path ends with 'todos.json', replace with 'users.json'.
+            path = Path(storage_path)
+            if path.name == "todos.json":
+                self.storage_path = path.with_name("users.json")
+            else:
+                self.storage_path = path.parent / "users.json"
+        else:
+            self.storage_path = Path.home() / ".snekdo" / "users.json"
+
+        if storage_type == "sqlite":
+            self._sqlite_backend = UserStorageSQLite(storage_path=str(self.storage_path))
+        else:
+            self._sqlite_backend = None
 
     def __init__(self, storage_path: str | None = None) -> None:
         if storage_path is not None:
@@ -242,11 +302,14 @@ class UserStorage:
         f.close()
 
     def load(self) -> list[User]:
-        """Load all users from the JSON file.
+        """Load all users from the JSON file or SQLite database.
 
         Returns:
             An empty list if the file does not exist.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.load()
+        
         if not self.storage_path.exists():
             return []
         with self._open_file(self.storage_path, "r") as f:

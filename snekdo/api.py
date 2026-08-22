@@ -17,7 +17,8 @@ from snekdo.api_auth import (
 from snekdo.auth import verify_password
 from snekdo.due_date import validate_due_date
 from snekdo.models import Todo, User
-from snekdo.storage import StorageError, TodoStorage, UserStorage
+from snekdo.storage import StorageError, TodoStorage
+from snekdo.storage_sqlite import TodoStorageSQLite, UserStorageSQLite
 
 # ---------------------------------------------------------------------------
 # Pydantic request / response models
@@ -137,8 +138,10 @@ class UserProfileResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def get_storage(storage_path: str | None = None) -> TodoStorage:
+def get_storage(storage_path: str | None = None, storage_type: str = "json") -> TodoStorage:
     """Dependency that provides a :class:`TodoStorage` instance."""
+    if storage_type == "sqlite":
+        return TodoStorageSQLite(storage_path=storage_path)
     return TodoStorage(storage_path=storage_path)
 
 
@@ -157,12 +160,14 @@ def _derive_users_path(storage_path: str | None = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def create_app(storage_path: str | None = None) -> FastAPI:
+def create_app(storage_path: str | None = None, storage_type: str = "json") -> FastAPI:
     """Create the FastAPI application.
 
     Args:
-        storage_path: Optional path to the JSON storage file. If ``None``, the
-            default ``~/.snekdo/todos.json`` is used.
+        storage_path: Optional path to the storage file. If ``None``, the
+            default ``~/.snekdo/todos.json`` (JSON) or ``~/.snekdo/todos.db`` (SQLite)
+            is used.
+        storage_type: Storage backend to use - "json" or "sqlite".
     """
     app = FastAPI(
         title="snekdo",
@@ -171,7 +176,7 @@ def create_app(storage_path: str | None = None) -> FastAPI:
     )
 
     def _storage() -> TodoStorage:
-        return get_storage(storage_path)
+        return get_storage(storage_path=storage_path, storage_type=storage_type)
 
     # Override the default get_current_user to use the correct storage path
     app.dependency_overrides[get_current_user] = get_current_user_factory(
