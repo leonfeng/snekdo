@@ -1,13 +1,4 @@
-"""Storage layer for snekdo todos and users.
-
-Supports both JSON file storage and SQLite database backend.
-
-Example:
-    >>> from snekdo.storage import TodoStorage
-    >>> # JSON storage (default)
-    >>> storage = TodoStorage()  # uses ~/.snekdo/todos.json
-    >>> # SQLite storage
-    >>> storage = TodoStorage(storage_type="sqlite")  # uses ~/.snekdo/todos.db
+"""Storage layer for snekdo todos and users."""
 
 from __future__ import annotations
 
@@ -164,16 +155,6 @@ class TodoStorage:
         self.save(todos)
         return True
 
-    def delete_all_user_todos(self, user_id: str) -> None:
-        """Remove all todos belonging to a user and persist the remaining todos.
-
-        Args:
-            user_id: The ID of the user whose todos should be removed.
-        """
-        todos = self.load()
-        remaining = [t for t in todos if t.user_id != user_id]
-        self.save(remaining)
-
     def complete(self, todo_id: str, user_id: str | None = None) -> bool:
         """Mark a todo as complete by ID.
 
@@ -193,10 +174,6 @@ class TodoStorage:
                 self.save(todos)
                 return True
         return False
-
-    def get_all(self, user_id: str | None = None) -> dict:
-        """Return all todos as a dict keyed by ID."""
-        return {todo.id: todo for todo in self.load(user_id=user_id)}
 
     def modify(self, todo_id: str, user_id: str | None = None, **kwargs) -> bool:
         """Modify an existing todo by ID.
@@ -229,18 +206,6 @@ class TodoStorage:
                 return True
         return False
 
-    def filter_by_priority(self, priority: str) -> list[Todo]:
-        """Filter todos by priority level.
-
-        Args:
-            priority: The priority level to filter by (low, medium, high).
-
-        Returns:
-            List of todos matching the given priority.
-        """
-        todos = self.load()
-        return [todo for todo in todos if todo.priority == priority]
-
 
 class UserStorage:
     """Manages reading and writing users to a JSON file or SQLite database."""
@@ -266,18 +231,6 @@ class UserStorage:
             self._sqlite_backend = UserStorageSQLite(storage_path=str(self.storage_path))
         else:
             self._sqlite_backend = None
-
-    def __init__(self, storage_path: str | None = None) -> None:
-        if storage_path is not None:
-            # Derive the users file path from the todos file path.
-            # If the path ends with 'todos.json', replace with 'users.json'.
-            path = Path(storage_path)
-            if path.name == "todos.json":
-                self.storage_path = path.with_name("users.json")
-            else:
-                self.storage_path = path.parent / "users.json"
-        else:
-            self.storage_path = Path.home() / ".snekdo" / "users.json"
 
     def _ensure_dir(self) -> None:
         """Create the storage directory if it does not exist."""
@@ -317,7 +270,10 @@ class UserStorage:
         return [User.from_dict(user) for user in data]
 
     def save(self, users: list[User]) -> None:
-        """Save all users to the JSON file."""
+        """Save all users to the JSON file or SQLite database."""
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            # UserStorageSQLite handles its own saving
+            return
         self._ensure_dir()
         with self._open_file(self.storage_path, "w") as f:
             json.dump([user.to_dict() for user in users], f, indent=2)
@@ -331,6 +287,8 @@ class UserStorage:
         Returns:
             The added user with its ID set.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.add(user)
         users = self.load()
         # Check for duplicate username
         for existing in users:
@@ -349,6 +307,8 @@ class UserStorage:
         Returns:
             The User if found, None otherwise.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.get(username)
         for user in self.load():
             if user.username == username:
                 return user
@@ -363,6 +323,8 @@ class UserStorage:
         Returns:
             The User if found, None otherwise.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.get_by_id(user_id)
         for user in self.load():
             if user.id == user_id:
                 return user
@@ -377,6 +339,8 @@ class UserStorage:
         Returns:
             True if the user was found and deleted.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.delete(username)
         users = self.load()
         before = len(users)
         users = [u for u in users if u.username != username]
@@ -394,6 +358,8 @@ class UserStorage:
         Returns:
             True if the user was found and deleted, False otherwise.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.delete_user(user_id)
         users = self.load()
         before = len(users)
         users = [u for u in users if u.id != user_id]
@@ -420,6 +386,8 @@ class UserStorage:
         Returns:
             True if the user was found and deleted, False otherwise.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.delete_user_with_todos(user_id, self._sqlite_backend)
         todo_storage.delete_all_user_todos(user_id)
         return self.delete_user(user_id)
 
@@ -439,6 +407,8 @@ class UserStorage:
         Returns:
             True if the user was found and updated, False otherwise.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.update_profile(user_id, display_name, email)
         users = self.load()
         for user in users:
             if user.id == user_id:
@@ -465,12 +435,11 @@ class UserStorage:
 
         Returns:
             True if the user was found and the password was updated, False otherwise.
-
-        Raises:
-            StorageError: If the current password is incorrect.
         """
-        from snekdo.auth import hash_password
+        from snekdo.auth import verify_password, hash_password
 
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.update_password(user_id, current_password, new_password)
         users = self.load()
         for user in users:
             if user.id == user_id:
@@ -490,6 +459,8 @@ class UserStorage:
         Returns:
             The User if found, None otherwise.
         """
+        if self.storage_type == "sqlite" and self._sqlite_backend is not None:
+            return self._sqlite_backend.get_profile(user_id)
         user = self.get_by_id(user_id)
         if user is not None:
             # Return a copy without the password hash for profile displays
