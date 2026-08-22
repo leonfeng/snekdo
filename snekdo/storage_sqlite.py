@@ -19,7 +19,7 @@ class TodoStorageSQLite:
         if database_path is not None:
             self.database_path = Path(database_path)
         else:
-            self.database_path = Path.home() / ".snekdo" / "todos.db"
+            self.database_path = Path.home() / ".snekdo-server" / "todos.db"
 
         self._ensure_dir()
         self._init_db()
@@ -308,7 +308,7 @@ class UserStorageSQLite:
         if database_path is not None:
             self.database_path = Path(database_path)
         else:
-            self.database_path = Path.home() / ".snekdo" / "users.db"
+            self.database_path = Path.home() / ".snekdo-server" / "users.db"
 
         self._ensure_dir()
         self._init_db()

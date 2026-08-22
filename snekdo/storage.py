@@ -36,10 +36,13 @@ class TodoStorage:
         if storage_path is not None:
             self.storage_path = Path(storage_path)
         else:
-            self.storage_path = Path.home() / ".snekdo" / "todos.json"
+            self.storage_path = Path.home() / ".snekdo-server" / "todos.json"
 
         if storage_type == "sqlite":
-            self._sqlite_backend = TodoStorageSQLite(storage_path=str(self.storage_path))
+            # Ensure the directory exists
+            db_dir = Path(str(self.storage_path)).parent
+            db_dir.mkdir(parents=True, exist_ok=True)
+            self._sqlite_backend = TodoStorageSQLite(database_path=str(self.storage_path))
         else:
             self._sqlite_backend = None
 
