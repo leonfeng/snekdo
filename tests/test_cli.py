@@ -1171,8 +1171,8 @@ class TestCLI:
 
     def test_default_storage_path_when_omitted(self, tmp_path, monkeypatch):
         """Test that default path is used when --storage is omitted."""
-        default_dir = tmp_path / ".snekdo"
-        default_dir.mkdir()
+        default_dir = tmp_path / ".snekdo-server"
+        default_dir.mkdir(parents=True, exist_ok=True)
         default_file = default_dir / "todos.json"
         monkeypatch.setenv("HOME", str(tmp_path))
 
@@ -2389,8 +2389,8 @@ class TestMissingStorageAttribute:
 
     def test_add_without_storage_attribute(self, tmp_path, monkeypatch):
         """Test that add works when --storage is omitted (no storage attribute)."""
-        default_dir = tmp_path / ".snekdo"
-        default_dir.mkdir()
+        default_dir = tmp_path / ".snekdo-server"
+        default_dir.mkdir(parents=True, exist_ok=True)
         default_file = default_dir / "todos.json"
         monkeypatch.setenv("HOME", str(tmp_path))
 
@@ -2410,8 +2410,8 @@ class TestMissingStorageAttribute:
 
     def test_list_without_storage_attribute(self, tmp_path, monkeypatch):
         """Test that list works when --storage is omitted."""
-        default_dir = tmp_path / ".snekdo"
-        default_dir.mkdir()
+        default_dir = tmp_path / ".snekdo-server"
+        default_dir.mkdir(parents=True, exist_ok=True)
         default_file = default_dir / "todos.json"
         default_file.write_text("[]")
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -2433,8 +2433,8 @@ class TestMissingStorageAttribute:
 
     def test_complete_without_storage_attribute(self, tmp_path, monkeypatch):
         """Test that complete works when --storage is omitted."""
-        default_dir = tmp_path / ".snekdo"
-        default_dir.mkdir()
+        default_dir = tmp_path / ".snekdo-server"
+        default_dir.mkdir(parents=True, exist_ok=True)
         default_file = default_dir / "todos.json"
         todos = [
             {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
@@ -2454,8 +2454,8 @@ class TestMissingStorageAttribute:
 
     def test_delete_without_storage_attribute(self, tmp_path, monkeypatch):
         """Test that delete works when --storage is omitted."""
-        default_dir = tmp_path / ".snekdo"
-        default_dir.mkdir()
+        default_dir = tmp_path / ".snekdo-server"
+        default_dir.mkdir(parents=True, exist_ok=True)
         default_file = default_dir / "todos.json"
         todos = [
             {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
@@ -2475,8 +2475,8 @@ class TestMissingStorageAttribute:
 
     def test_modify_without_storage_attribute(self, tmp_path, monkeypatch):
         """Test that modify works when --storage is omitted."""
-        default_dir = tmp_path / ".snekdo"
-        default_dir.mkdir()
+        default_dir = tmp_path / ".snekdo-server"
+        default_dir.mkdir(parents=True, exist_ok=True)
         default_file = default_dir / "todos.json"
         todos = [
             {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
@@ -2496,8 +2496,8 @@ class TestMissingStorageAttribute:
 
     def test_show_without_storage_attribute(self, tmp_path, monkeypatch):
         """Test that show works when --storage is omitted."""
-        default_dir = tmp_path / ".snekdo"
-        default_dir.mkdir()
+        default_dir = tmp_path / ".snekdo-server"
+        default_dir.mkdir(parents=True, exist_ok=True)
         default_file = default_dir / "todos.json"
         todos = [
             {"id": "1", "title": "Test todo", "description": "", "due": None, "completed": False, "created_at": "2024-01-01T00:00:00", "priority": "medium"},  # noqa: E501
