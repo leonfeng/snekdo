@@ -17,7 +17,7 @@ from snekdo.api_auth import (
 from snekdo.auth import verify_password
 from snekdo.due_date import validate_due_date
 from snekdo.models import Todo, User
-from snekdo.storage import StorageError, TodoStorage
+from snekdo.storage import StorageError, TodoStorage, UserStorage
 from snekdo.storage_sqlite import TodoStorageSQLite, UserStorageSQLite
 
 # ---------------------------------------------------------------------------

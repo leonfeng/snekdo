@@ -178,6 +178,32 @@ class TodoStorage:
                 return True
         return False
 
+    def filter_by_priority(self, priority: str) -> list[Todo]:
+        """Filter todos by priority level.
+
+        Args:
+            priority: The priority level to filter by (low, medium, high).
+
+        Returns:
+            A list of todos with the specified priority.
+        """
+        todos = self.load()
+        return [t for t in todos if t.priority == priority]
+
+    def delete_all_user_todos(self, user_id: str) -> None:
+        """Remove all todos belonging to a user.
+
+        Args:
+            user_id: The ID of the user whose todos should be removed.
+        """
+        todos = self.load()
+        todos = [t for t in todos if t.user_id != user_id]
+        self.save(todos)
+
+    def get_all(self) -> list[Todo]:
+        """Return all todos."""
+        return self.load()
+
     def modify(self, todo_id: str, user_id: str | None = None, **kwargs) -> bool:
         """Modify an existing todo by ID.
 
