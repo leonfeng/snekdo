@@ -42,7 +42,7 @@ async def _post_todo_action(page, todo_id: str, action: str) -> None:
             }
             return fetch(`${params.url}/${params.id}/${params.action}`, {
                 method: "POST",
-                headers: { "X-CSRF-Token": cs },
+                headers: { "X-CSRF-Token": cs, "credentials": "include" },
                 body: "csrf_token=" + encodeURIComponent(cs),
             });
         }""",
@@ -84,7 +84,7 @@ async def test_edit_todo(page):
     await row.locator('a.btn:has-text("Edit")').click()
     await page.wait_for_load_state("load")
     await page.locator('input[name="title"]').fill("Edited title")
-    await page.locator('button[type="submit"]').click()
+    await page.locator('button.btn[type="submit"]').click()
     await page.wait_for_load_state("load")
     text = await _get_text(page)
     assert "Edited title" in text
@@ -97,7 +97,7 @@ async def test_edit_todo_empty_title(page):
     await row.locator('a.btn:has-text("Edit")').click()
     await page.wait_for_load_state("load")
     await page.locator('input[name="title"]').fill("   ")
-    await page.locator('button[type="submit"]').click()
+    await page.locator('button.btn[type="submit"]').click()
     await page.wait_for_load_state("load")
     text = await _get_text(page)
     assert "title is required" in text.lower()

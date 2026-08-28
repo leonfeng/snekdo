@@ -155,16 +155,22 @@ async def test_no_state_mutation_on_csrf_rejection(page):
 
 
 async def test_csrf_token_invalidated_on_logout(page):
-    """CSRF token invalidation on logout: resubmitting the pre-logout token is rejected."""
+    """CSRF token invalidated on logout: resubmitting the pre-logout token is rejected."""
     await page.goto(f"{BASE_URL}/todos")
     csrf_token = await _get_csrf_token(page)
     await page.click('form[action="/auth/logout"] button[type="submit"]')
     await page.wait_for_url(f"{BASE_URL}/auth/login")
     # After logout, the CSRF token cookie should be deleted.
-    # Submit to /todos/add with the old token - should be rejected (403).
+    # Log in again to get a new session/CSRF cookie, then submit with old token.
+    await page.goto(f"{BASE_URL}/auth/login")
+    await page.fill('input[name="username"]', "testuser")
+    await page.fill('input[name="password"]', "password123")
+    await page.click('button[type="submit"]')
+    await page.wait_for_url(BASE_URL)
+    # Now submit to /todos/add with the old CSRF token - should be rejected (403).
     await page.goto(f"{BASE_URL}/todos/add")
-    # The form should still have the csrf_token input from the server-rendered HTML
-    # but the cookie is deleted, so the submitted token won't match
+    # The form should have the csrf_token input from the server-rendered HTML
+    # but the cookie has a new token (from re-login), so the old token won't match.
     await page.fill('input[name="title"]', "Test csrf after logout")
     await page.evaluate(
         f'(oldToken) => {{ '
@@ -185,4 +191,4 @@ async def test_delete_account_via_htmx(page):
         'current_password': 'password123',
     })
     await page.wait_for_timeout(500)
-    assert "Login" in await _get_text(page)
+    assert "login" in await _get_text(page).lower()

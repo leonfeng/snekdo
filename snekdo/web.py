@@ -316,7 +316,7 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         todo = storage.get(todo_id, user_id=user_id)
         if todo is None:
             raise HTTPException(status_code=404, detail="Todo not found")
-        storage.complete(todo_id)
+        storage.complete(todo_id, user_id=user_id)
         # Load the most recent instance to avoid stale object attributes
         todo = storage.get(todo_id, user_id=user_id)
         if todo is None:
@@ -348,7 +348,7 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         todo = storage.get(todo_id, user_id=user_id)
         if todo is None:
             raise HTTPException(status_code=404, detail="Todo not found")
-        storage.delete(todo_id)
+        storage.delete(todo_id, user_id=user_id)
 
         if request.headers.get("HX-Request"):
             todos = storage.load(user_id=user_id)

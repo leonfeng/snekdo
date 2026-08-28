@@ -76,6 +76,7 @@ async def test_change_password_success(page):
         'new_password': 'newpass123',
         'confirm_password': 'newpass123',
     })
+    await page.goto(f"{BASE_URL}/profile")
     current = await page.locator('#current_password').input_value()
     new = await page.locator('input[name="new_password"]').input_value()
     confirm = await page.locator('input[name="confirm_password"]').input_value()
