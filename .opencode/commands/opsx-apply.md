@@ -91,6 +91,7 @@ Implement tasks from an OpenSpec change.
    a. Work only from the current remaining-task list. Re-run `openspec instructions apply --change "<name>" --json` after each checkbox update (and whenever the list may be stale) instead of continuing from memory.
    b. If a pending task's target file already exists from a successful write, mark that task complete. Do not rewrite the file.
    c. Otherwise implement the next pending task: show which task, make the change, keep it minimal.
+      - If the task targets a Python file (or clearly implies one), call `context-compile` on that file before the first implementation read/write for this task. Keep OpenSpec artifacts from step 4 as-is.
    d. Immediately edit the tasks file: `- [ ]` → `- [x]` for every task that write completed. This edit is mandatory and MUST be the next tool call — do not write any other implementation file until it succeeds.
    e. Return to (a).
 

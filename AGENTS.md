@@ -41,6 +41,12 @@ snekdo — a Python CLI todo list manager (single package `snekdo/`, tests in `t
 - `openspec/` holds `config.yaml`, `specs/` (main specs) and `changes/` (delta changes). The workflow is `spec-driven`.
 - Commands: `/opsx-apply`, `/opsx-archive`, `/opsx-explore`, `/opsx-propose`, `/opsx-sync`, `/opsx-update`.
 
+## Context compilation (OpenCode apply)
+- During OpenSpec apply on a Python task with a clear edit target, call the `context-compile` tool on that file before broad code reads.
+- Vendored in `tools/context-compiler/`; wrapper CLI: `python3 tools/context_compile.py <path> --repo-root .`
+- Still read OpenSpec artifacts (`proposal.md`, specs, `design.md`, `tasks.md`) in full — compiled context replaces exploratory code dumps, not specs.
+- Skip during explore/propose/archive and when there is no single `.py` target.
+
 ## Gotchas
 - `storage_path` is passed as a string to `create_app()` and `TodoStorage()`; `_get_storage_path()` returns a `Path`.
 - `handle_serve` imports `uvicorn` lazily; fails gracefully if missing.
