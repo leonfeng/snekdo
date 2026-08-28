@@ -168,6 +168,7 @@ class ServerHttpClient:
         description: str = "",
         due: str | None = None,
         priority: str = "medium",
+        completed: bool | None = None,
         credentials_path: Path | None = None,
     ) -> dict:
         """Create a new todo on the server.
@@ -177,6 +178,7 @@ class ServerHttpClient:
             description: The description of the todo.
             due: The due date (YYYY-MM-DD format).
             priority: The priority level (low, medium, high).
+            completed: The completion status. Defaults to None (not sent).
             credentials_path: Optional path to the credentials file.
 
         Returns:
@@ -185,6 +187,8 @@ class ServerHttpClient:
         data: dict = {"title": title, "description": description, "priority": priority}
         if due:
             data["due"] = due
+        if completed is not None:
+            data["completed"] = completed
         return self._request(
             "POST", "/api/v1/todos", data=data, credentials_path=credentials_path
         )
