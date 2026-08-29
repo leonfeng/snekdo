@@ -29,7 +29,7 @@ def _parse_list_line(line):
 
     The list output format is:
     {ID:<id_width} {Title:<title_width}
-    {Status:<10} {Priority:<10} {Due:<15} {Created At:<25}
+    {Status:<10} {Priority:<10} {Due:<15} {Repeat:<8} {Created At:<25}
 
     Since all columns except ID and Title are fixed-width, we parse from the right.
     """
@@ -39,6 +39,9 @@ def _parse_list_line(line):
     created_at = line[-25:].strip()
     line = line[:-25]
     line = line[:-1]  # remove space separator before Created At
+    repeat = line[-8:].strip()
+    line = line[:-8]
+    line = line[:-1]  # remove space separator before Repeat
     due = line[-15:].strip()
     line = line[:-15]
     line = line[:-1]  # remove space separator before Due
@@ -60,7 +63,7 @@ def _parse_list_line(line):
         # Skip ID column padding and strip trailing Title column padding
         title = line[first_space + 1:].strip()
 
-    return id_, title, status, priority, due, created_at
+    return id_, title, status, priority, due, repeat, created_at
 
 
 
@@ -1159,6 +1162,7 @@ class TestCLI:
         args.description = ""
         args.due = None
         args.priority = "medium"
+        args.repeat = "none"
         args.storage = str(storage_file)
 
         result = handle_add(args, None)
@@ -1182,6 +1186,7 @@ class TestCLI:
         args.description = ""
         args.due = None
         args.priority = "medium"
+        args.repeat = "none"
         args.storage = None
 
         result = handle_add(args, None)

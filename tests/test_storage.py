@@ -132,6 +132,81 @@ def test_complete():
         assert updated.completed is True
 
 
+def test_complete_non_recurring_does_not_duplicate():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="One-off",
+            description="",
+            due="2024-12-31",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(todo)
+        storage.complete("1")
+        todos = storage.load()
+        assert len(todos) == 1
+        assert todos[0].completed is True
+
+
+def test_complete_daily_recurring_creates_next_occurrence():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Daily task",
+            description="",
+            due="2024-06-01",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            repeat="daily",
+        )
+        storage.add(todo)
+        result = storage.complete("1")
+        assert result is True
+        todos = storage.load()
+        assert len(todos) == 2
+        completed = [t for t in todos if t.completed]
+        pending = [t for t in todos if not t.completed]
+        assert len(completed) == 1
+        assert completed[0].id == "1"
+        assert completed[0].last_completed_at is not None
+        assert len(pending) == 1
+        assert pending[0].id != "1"
+        assert pending[0].title == "Daily task"
+        assert pending[0].repeat == "daily"
+        assert pending[0].due is not None
+        assert pending[0].due > "2024-06-01"
+
+
+def test_complete_weekly_recurring_preserves_other_fields():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Weekly task",
+            description="desc",
+            due="2024-06-05",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            priority="high",
+            repeat="weekly",
+        )
+        storage.add(todo)
+        storage.complete("1")
+        todos = storage.load()
+        pending = [t for t in todos if not t.completed]
+        assert len(pending) == 1
+        assert pending[0].description == "desc"
+        assert pending[0].priority == "high"
+        assert pending[0].repeat == "weekly"
+        assert pending[0].last_completed_at is None
+
+
 def test_complete_not_found():
     with tempfile.TemporaryDirectory() as tmpdir:
         storage_path = Path(tmpdir) / "todos.json"

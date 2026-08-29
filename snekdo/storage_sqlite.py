@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from snekdo.models import Todo, User, Priority
+from snekdo.models import Todo, User, Priority, next_due_date
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,9 @@ class TodoStorageSQLite:
                     completed INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     priority TEXT NOT NULL DEFAULT 'medium',
-                    user_id TEXT
+                    user_id TEXT,
+                    repeat TEXT NOT NULL DEFAULT 'none',
+                    last_completed_at TEXT
                 )
             """)
             conn.execute("""
@@ -69,12 +71,14 @@ class TodoStorageSQLite:
         return Todo(
             id=row[0],
             title=row[1],
-            description=row[2],
+            description=row[2] or "",
             due=row[3] if row[3] else None,
             completed=bool(row[4]),
             created_at=row[5],
             priority=Priority(row[6]) if row[6] else Priority.MEDIUM,
             user_id=row[7],
+            repeat=row[8] if row[8] else "none",
+            last_completed_at=row[9] if len(row) > 9 and row[9] else None,
         )
 
     def _row_to_dict(self, row: tuple) -> dict:
@@ -82,12 +86,14 @@ class TodoStorageSQLite:
         return {
             "id": row[0],
             "title": row[1],
-            "description": row[2],
+            "description": row[2] or "",
             "due": row[3],
             "completed": bool(row[4]),
             "created_at": row[5],
             "priority": row[6],
             "user_id": row[7],
+            "repeat": row[8] if len(row) > 8 and row[8] else "none",
+            "last_completed_at": row[9] if len(row) > 9 and row[9] else None,
         }
 
     def load(self, user_id: str | None = None) -> list[Todo]:
@@ -102,11 +108,11 @@ class TodoStorageSQLite:
         conn = self._get_connection()
         try:
             cursor = conn.execute(
-                "SELECT id, title, description, due, completed, created_at, priority, user_id FROM todos"
+                "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at FROM todos"
             )
             if user_id is not None:
                 cursor = cursor.execute(
-                    "SELECT id, title, description, due, completed, created_at, priority, user_id FROM todos WHERE user_id = ?",
+                    "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at FROM todos WHERE user_id = ?",
                     (user_id,),
                 )
             rows = cursor.fetchall()
@@ -120,8 +126,8 @@ class TodoStorageSQLite:
         try:
             for todo in todos:
                 conn.execute(
-                    """INSERT OR REPLACE INTO todos (id, title, description, due, completed, created_at, priority, user_id)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    """INSERT OR REPLACE INTO todos (id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         todo.id,
                         todo.title,
@@ -129,8 +135,10 @@ class TodoStorageSQLite:
                         todo.due,
                         1 if todo.completed else 0,
                         todo.created_at,
-                        todo.priority.value,
+                        todo.priority,
                         todo.user_id,
+                        todo.repeat,
+                        todo.last_completed_at,
                     ),
                 )
             conn.commit()
@@ -207,6 +215,9 @@ class TodoStorageSQLite:
     def complete(self, todo_id: str, user_id: str | None = None) -> bool:
         """Mark a todo as complete by ID.
 
+        If the todo has a repeat rule, a new pending occurrence is created
+        with the next due date.
+
         Args:
             todo_id: The ID of the todo to complete.
             user_id: If provided, also filter by user.
@@ -217,21 +228,58 @@ class TodoStorageSQLite:
         conn = self._get_connection()
         try:
             cursor = conn.execute(
-                "SELECT id FROM todos WHERE id = ?",
+                "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at FROM todos WHERE id = ?",
                 (todo_id,),
             )
             if user_id is not None:
                 cursor = cursor.execute(
-                    "SELECT id FROM todos WHERE id = ? AND user_id = ?",
+                    "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at FROM todos WHERE id = ? AND user_id = ?",
                     (todo_id, user_id),
                 )
             row = cursor.fetchone()
             if row is None:
                 return False
+
+            todo = self._todo_from_row(row)
+            now_iso = datetime.now(timezone.utc).isoformat()
+
+            # Mark the existing todo as completed
             conn.execute(
-                "UPDATE todos SET completed = 1 WHERE id = ?",
-                (todo_id,) if user_id is None else (todo_id, user_id),
+                "UPDATE todos SET completed = 1, last_completed_at = ? WHERE id = ?",
+                (now_iso,) + ((user_id,) if user_id else ()),
             )
+
+            # If the todo is recurring, create the next occurrence
+            if todo.repeat and todo.repeat != "none" and not todo.completed:
+                next_due = next_due_date(todo.due, todo.repeat, datetime.now(timezone.utc))
+                new_todo = Todo(
+                    title=todo.title,
+                    description=todo.description,
+                    due=next_due,
+                    completed=False,
+                    created_at=now_iso,
+                    priority=todo.priority,
+                    user_id=todo.user_id,
+                    repeat=todo.repeat,
+                    last_completed_at=None,
+                )
+                conn.execute(
+                    """INSERT INTO todos (id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        new_todo.id,
+                        new_todo.title,
+                        new_todo.description,
+                        new_todo.due,
+                        0,
+                        new_todo.created_at,
+                        new_todo.priority.value if hasattr(new_todo.priority, 'value') else new_todo.priority,
+                        new_todo.user_id,
+                        new_todo.repeat,
+                        None,
+                    ),
+                )
+
             conn.commit()
             return True
         finally:
@@ -283,6 +331,9 @@ class TodoStorageSQLite:
             if "completed" in kwargs:
                 update_fields.append("completed = ?")
                 update_values.append(1 if kwargs["completed"] else 0)
+            if "repeat" in kwargs:
+                update_fields.append("repeat = ?")
+                update_values.append(kwargs["repeat"].value if hasattr(kwargs["repeat"], "value") else kwargs["repeat"])
 
             if not update_fields:
                 return True

@@ -116,6 +116,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Priority level (low, medium, high)",
     )
     add_parser.add_argument(
+        "--repeat",
+        default="none",
+        choices=["none", "daily", "weekly", "monthly", "yearly"],
+        help="Recurrence interval (none, daily, weekly, monthly, yearly)",
+    )
+    add_parser.add_argument(
         "--storage", help="Path to the storage file", default=argparse.SUPPRESS
     )
 
@@ -412,9 +418,11 @@ def handle_add(args, parser) -> int:
         completed=False,
         created_at=datetime.now().isoformat(),
         priority=args.priority,
+        repeat=getattr(args, "repeat", "none"),
     )
     storage.add(todo)
-    print(f"Added todo: {todo.title}")
+    repeat_info = f" (repeats {getattr(args, 'repeat', 'none')})" if getattr(args, "repeat", "none") != "none" else ""
+    print(f"Added todo: {todo.title}{repeat_info}")
     return 0
 
 
@@ -483,6 +491,7 @@ def handle_list(args, parser) -> int:
     status_width = 10
     priority_width = 10
     due_width = 15
+    repeat_width = 8
     created_at_width = 25
 
     # Use a single space separator between all columns for uniform whitespace.
@@ -491,7 +500,8 @@ def handle_list(args, parser) -> int:
     header = (
         f"{'ID':<{id_width}}{sep}{'Title':<{title_width}}{sep}"
         f"{'Status':<{status_width}}{sep}{'Priority':<{priority_width}}{sep}"
-        f"{'Due':<{due_width}}{sep}{'Created At':<{created_at_width}}"
+        f"{'Due':<{due_width}}{sep}{'Repeat':<{repeat_width}}{sep}"
+        f"{'Created At':<{created_at_width}}"
     )
     print(header)
     print("-" * len(header))
@@ -499,12 +509,14 @@ def handle_list(args, parser) -> int:
         status = "✓" if todo.completed else "pending"
         due = todo.due if todo.due else ""
         created_at = todo.created_at if todo.created_at else ""
+        repeat_tag = f"({todo.repeat})" if todo.repeat and todo.repeat != "none" else ""
         title = _truncate_title(todo.title, title_width)
         id_ = _truncate_title(todo.id, id_width)
         print(
             f"{id_:<{id_width}}{sep}{title:<{title_width}}{sep}"
             f"{status:<{status_width}}{sep}{todo.priority:<{priority_width}}{sep}"
-            f"{due:<{due_width}}{sep}{created_at:<{created_at_width}}"
+            f"{due:<{due_width}}{sep}{repeat_tag:<{repeat_width}}{sep}"
+            f"{created_at:<{created_at_width}}"
         )
 
     return 0

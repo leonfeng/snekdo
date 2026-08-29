@@ -22,6 +22,16 @@
             <option value="high" {% if todo.priority == "high" %}selected{% endif %}>High</option>
         </select>
     </div>
+    <div class="form-group">
+        <label for="repeat">Repeat</label>
+        <select id="repeat" name="repeat">
+            <option value="none" {% if todo.repeat == "none" %}selected{% endif %}>None</option>
+            <option value="daily" {% if todo.repeat == "daily" %}selected{% endif %}>Daily</option>
+            <option value="weekly" {% if todo.repeat == "weekly" %}selected{% endif %}>Weekly</option>
+            <option value="monthly" {% if todo.repeat == "monthly" %}selected{% endif %}>Monthly</option>
+            <option value="yearly" {% if todo.repeat == "yearly" %}selected{% endif %}>Yearly</option>
+        </select>
+    </div>
     <button type="submit" class="btn">Update Todo</button>
 </form>
 {% if error %}

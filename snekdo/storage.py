@@ -6,10 +6,11 @@ import json
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 
 from snekdo.auth import verify_password
-from snekdo.models import Todo, User
+from snekdo.models import Todo, User, next_due_date
 from snekdo.storage_sqlite import TodoStorageSQLite
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,9 @@ class TodoStorage:
     def complete(self, todo_id: str, user_id: str | None = None) -> bool:
         """Mark a todo as complete by ID.
 
+        If the todo has a repeat rule, a new pending occurrence is created
+        with the next due date.
+
         Args:
             todo_id: The ID of the todo to complete.
             user_id: If provided, also filter by user.
@@ -174,6 +178,22 @@ class TodoStorage:
         for todo in todos:
             if todo.id == todo_id:
                 todo.completed = True
+                now_iso = datetime.now().isoformat()
+                todo.last_completed_at = now_iso
+                if todo.repeat and todo.repeat != "none":
+                    next_due = next_due_date(todo.due, todo.repeat, datetime.now())
+                    next_todo = Todo(
+                        title=todo.title,
+                        description=todo.description,
+                        due=next_due,
+                        completed=False,
+                        created_at=now_iso,
+                        priority=todo.priority,
+                        user_id=todo.user_id,
+                        repeat=todo.repeat,
+                        last_completed_at=None,
+                    )
+                    todos.append(next_todo)
                 self.save(todos)
                 return True
         return False
@@ -231,6 +251,8 @@ class TodoStorage:
                     todo.priority = kwargs["priority"]
                 if "completed" in kwargs:
                     todo.completed = kwargs["completed"]
+                if "repeat" in kwargs:
+                    todo.repeat = kwargs["repeat"]
                 self.save(todos)
                 return True
         return False

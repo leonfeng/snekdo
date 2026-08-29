@@ -37,6 +37,7 @@
             <th>Status</th>
             <th>Priority</th>
             <th>Due</th>
+            <th>Repeat</th>
             <th>Created At</th>
             <th>Actions</th>
         </tr>
@@ -49,6 +50,7 @@
             <td>{{ "✓" if todo.completed else "pending" }}</td>
             <td>{{ todo.priority }}</td>
             <td>{{ todo.due if todo.due else "" }}</td>
+            <td>{{ "(" ~ todo.repeat ~ ")" if todo.repeat and todo.repeat != "none" else "" }}</td>
             <td>{{ todo.created_at }}</td>
             <td>
                 <a href="/todos/{{ todo.id }}/edit" class="btn">Edit</a>

@@ -16,7 +16,7 @@ from snekdo.api_auth import (
 )
 from snekdo.auth import verify_password
 from snekdo.due_date import validate_due_date
-from snekdo.models import Todo, User
+from snekdo.models import Repeat, Todo, User
 from snekdo.storage import StorageError, TodoStorage, UserStorage
 from snekdo.storage_sqlite import TodoStorageSQLite, UserStorageSQLite
 
@@ -32,6 +32,9 @@ class TodoCreate(BaseModel):
     description: str = ""
     due: str | None = None
     priority: Literal["low", "medium", "high"] = Field(default="medium")
+    repeat: Literal["none", "daily", "weekly", "monthly", "yearly"] = Field(
+        default="none"
+    )
 
     def to_todo(self) -> Todo:
         """Convert to a :class:`Todo` instance."""
@@ -43,6 +46,7 @@ class TodoCreate(BaseModel):
             completed=False,
             created_at=datetime.now().isoformat(),
             priority=self.priority,
+            repeat=self.repeat,
         )
 
 
@@ -53,6 +57,7 @@ class TodoUpdate(BaseModel):
     description: str | None = None
     due: str | None = None
     priority: Literal["low", "medium", "high"] | None = None
+    repeat: Literal["none", "daily", "weekly", "monthly", "yearly"] | None = None
     completed: bool | None = None
 
 
@@ -66,6 +71,8 @@ class TodoResponse(BaseModel):
     completed: bool
     created_at: str
     priority: str
+    repeat: str = "none"
+    last_completed_at: str | None = None
 
     @classmethod
     def from_todo(cls, todo: Todo) -> TodoResponse:
@@ -77,6 +84,8 @@ class TodoResponse(BaseModel):
             completed=todo.completed,
             created_at=todo.created_at,
             priority=todo.priority,
+            repeat=todo.repeat,
+            last_completed_at=todo.last_completed_at,
         )
 
 
@@ -427,6 +436,8 @@ def create_app(storage_path: str | None = None, storage_type: str = "json") -> F
                 raise HTTPException(status_code=422, detail=str(e))
         if update_data.priority is not None:
             update_dict["priority"] = update_data.priority
+        if update_data.repeat is not None:
+            update_dict["repeat"] = update_data.repeat
         if update_data.completed is not None:
             update_dict["completed"] = update_data.completed
 

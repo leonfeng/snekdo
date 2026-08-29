@@ -154,6 +154,7 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         description: str = Form(default=""),
         due: str | None = Form(default=""),
         priority: str = Form(default="medium"),
+        repeat: str = Form(default="none"),
         storage: TodoStorage = Depends(_storage),
         user_id: str = Depends(_require_login),
     ) -> Response:
@@ -179,11 +180,19 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
                 title="Add Todo",
                 error="Priority must be high, medium, or low",
             )
+        if repeat not in ("none", "daily", "weekly", "monthly", "yearly"):
+            return _render(
+                request,
+                "add.html",
+                title="Add Todo",
+                error="Repeat must be none, daily, weekly, monthly, or yearly",
+            )
         todo_data = TodoCreate(
             title=title,
             description=description,
             due=due,
             priority=priority,
+            repeat=repeat,
         )
         try:
             todo = todo_data.to_todo()
@@ -236,6 +245,7 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         description: str = Form(default=""),
         due: str | None = Form(default=""),
         priority: str = Form(default="medium"),
+        repeat: str = Form(default="none"),
         storage: TodoStorage = Depends(_storage),
         user_id: str = Depends(_require_login),
     ) -> Response:
@@ -267,10 +277,19 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
                 todo=todo,
                 error="Priority must be high, medium, or low",
             )
+        if repeat not in ("none", "daily", "weekly", "monthly", "yearly"):
+            return _render(
+                request,
+                "edit.html",
+                title="Edit Todo",
+                todo=todo,
+                error="Repeat must be none, daily, weekly, monthly, or yearly",
+            )
         update_kwargs = {
             "title": title,
             "description": description,
             "priority": priority,
+            "repeat": repeat,
         }
         try:
             due_clean = validate_due_date(due)

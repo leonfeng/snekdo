@@ -294,3 +294,95 @@ def test_todo_roundtrip_with_user_id():
     assert restored.id == todo.id
     assert restored.title == todo.title
     assert restored.user_id == todo.user_id
+
+
+def test_next_due_date_daily():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    # due is in the future relative to now
+    assert next_due_date("2024-06-01", "daily", datetime(2024, 6, 1)) == "2024-06-02"
+    # due is today -> next is tomorrow
+    assert next_due_date("2024-06-01", "daily", datetime(2024, 6, 1)) == "2024-06-02"
+
+
+def test_next_due_date_daily_past_due_advances_to_today_or_later():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    # due far in the past: candidate advances day-by-day until >= today
+    assert next_due_date("2024-01-01", "daily", datetime(2024, 6, 1)) == "2024-06-01"
+
+
+def test_next_due_date_daily_no_due_uses_today():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    assert next_due_date(None, "daily", datetime(2024, 6, 1)) == "2024-06-02"
+
+
+def test_next_due_date_weekly():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    assert next_due_date("2024-06-01", "weekly", datetime(2024, 6, 1)) == "2024-06-08"
+
+
+def test_next_due_date_weekly_past_due():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    # 2024-05-01 + 7k days; first >= 2024-06-01 is 2024-06-05? 05-01->05-08->...->06-05
+    # 05-01, 05-08, 05-15, 05-22, 05-29, 06-05 -> 06-05
+    assert next_due_date("2024-05-01", "weekly", datetime(2024, 6, 1)) == "2024-06-05"
+
+
+def test_next_due_date_monthly():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    assert next_due_date("2024-06-01", "monthly", datetime(2024, 6, 1)) == "2024-07-01"
+
+
+def test_next_due_date_monthly_clamps_to_month_end():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    # Jan 31 -> Feb 28 (2024 is leap year)
+    assert next_due_date("2024-01-31", "monthly", datetime(2024, 1, 1)) == "2024-02-29"
+    # Jan 31 -> Feb 28 (2023 not leap)
+    assert next_due_date("2023-01-31", "monthly", datetime(2023, 1, 1)) == "2023-02-28"
+
+
+def test_next_due_date_monthly_past_due():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    # 2024-01-15 monthly, now 2024-06-01: 02-15,03-15,04-15,05-15,06-15
+    assert next_due_date("2024-01-15", "monthly", datetime(2024, 6, 1)) == "2024-06-15"
+
+
+def test_next_due_date_yearly():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    assert next_due_date("2024-06-01", "yearly", datetime(2024, 6, 1)) == "2025-06-01"
+
+
+def test_next_due_date_yearly_clamps_feb29():
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    # 2024-02-29 yearly -> 2025-02-28
+    assert next_due_date("2024-02-29", "yearly", datetime(2024, 1, 1)) == "2025-02-28"
+
+
+def test_next_due_date_invalid_repeat_raises():
+    import pytest
+    from datetime import datetime
+    from snekdo.models import next_due_date
+
+    with pytest.raises(ValueError):
+        next_due_date("2024-06-01", "none", datetime(2024, 6, 1))
+    with pytest.raises(ValueError):
+        next_due_date("2024-06-01", "hourly", datetime(2024, 6, 1))
