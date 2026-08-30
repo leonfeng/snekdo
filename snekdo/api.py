@@ -35,6 +35,8 @@ class TodoCreate(BaseModel):
     repeat: Literal["none", "daily", "weekly", "monthly", "yearly"] = Field(
         default="none"
     )
+    tags: list[str] = Field(default_factory=list)
+    category: str | None = None
 
     def to_todo(self) -> Todo:
         """Convert to a :class:`Todo` instance."""
@@ -47,6 +49,8 @@ class TodoCreate(BaseModel):
             created_at=datetime.now().isoformat(),
             priority=self.priority,
             repeat=self.repeat,
+            tags=list(self.tags),
+            category=self.category,
         )
 
 
@@ -59,6 +63,8 @@ class TodoUpdate(BaseModel):
     priority: Literal["low", "medium", "high"] | None = None
     repeat: Literal["none", "daily", "weekly", "monthly", "yearly"] | None = None
     completed: bool | None = None
+    tags: list[str] | None = None
+    category: str | None = None
 
 
 class TodoResponse(BaseModel):
@@ -73,6 +79,8 @@ class TodoResponse(BaseModel):
     priority: str
     repeat: str = "none"
     last_completed_at: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    category: str | None = None
 
     @classmethod
     def from_todo(cls, todo: Todo) -> TodoResponse:
@@ -86,6 +94,8 @@ class TodoResponse(BaseModel):
             priority=todo.priority,
             repeat=todo.repeat,
             last_completed_at=todo.last_completed_at,
+            tags=list(todo.tags) if todo.tags else [],
+            category=todo.category,
         )
 
 
@@ -323,6 +333,8 @@ def create_app(storage_path: str | None = None, storage_type: str = "json") -> F
         current_user: User = Depends(get_current_user),
         status: str = Query(default="pending", enum=["all", "pending", "completed"]),
         priority: str | None = Query(default=None, enum=["low", "medium", "high"]),
+        tag: str | None = Query(default=None),
+        category: str | None = Query(default=None),
         sort: str | None = Query(
             default="created_at", enum=["created_at", "title", "priority", "completed"]
         ),
@@ -339,6 +351,12 @@ def create_app(storage_path: str | None = None, storage_type: str = "json") -> F
 
         if priority is not None:
             todos = [t for t in todos if t.priority == priority]
+
+        if tag is not None:
+            todos = [t for t in todos if tag in (t.tags or [])]
+
+        if category is not None:
+            todos = [t for t in todos if t.category == category]
 
         valid_sort_fields = {"created_at", "title", "priority", "completed"}
         if sort in valid_sort_fields:
@@ -440,6 +458,10 @@ def create_app(storage_path: str | None = None, storage_type: str = "json") -> F
             update_dict["repeat"] = update_data.repeat
         if update_data.completed is not None:
             update_dict["completed"] = update_data.completed
+        if "tags" in update_data.model_fields_set:
+            update_dict["tags"] = list(update_data.tags) if update_data.tags is not None else []
+        if "category" in update_data.model_fields_set:
+            update_dict["category"] = update_data.category
 
         if not update_dict:
             # An empty or whitespace-only `due` value is treated as "not provided"

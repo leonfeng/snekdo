@@ -366,6 +366,311 @@ def test_modify_priority():
         assert updated.priority == "high"
 
 
+def test_modify_tags():
+    """Test modifying a todo's tags (replaces the full list)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            tags=["old"],
+        )
+        storage.add(todo)
+        result = storage.modify("1", tags=["x", "y"])
+        assert result is True
+        updated = storage.get("1")
+        assert updated.tags == ["x", "y"]
+
+
+def test_modify_category():
+    """Test modifying a todo's category."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(todo)
+        result = storage.modify("1", category="home")
+        assert result is True
+        updated = storage.get("1")
+        assert updated.category == "home"
+
+
+def test_modify_clear_category():
+    """Test clearing a todo's category by setting it to None."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            category="home",
+        )
+        storage.add(todo)
+        result = storage.modify("1", category=None)
+        assert result is True
+        updated = storage.get("1")
+        assert updated.category is None
+
+
+def test_save_load_tags_category_roundtrip_json():
+    """Test tags and category survive a JSON save/load round-trip."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            tags=["a", "b"],
+            category="home",
+        )
+        storage.save([todo])
+        todos = storage.load()
+        assert len(todos) == 1
+        assert todos[0].tags == ["a", "b"]
+        assert todos[0].category == "home"
+
+
+def test_load_old_json_without_tags_category():
+    """Test that old-format JSON (no tags/category keys) loads with defaults."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage_path.write_text(
+            '[{"id": "1", "title": "Old", "description": "", "due": null, '
+            '"completed": false, "created_at": "2024-01-01T00:00:00", '
+            '"priority": "medium"}]'
+        )
+        storage = TodoStorage(storage_path=str(storage_path))
+        todos = storage.load()
+        assert len(todos) == 1
+        assert todos[0].tags == []
+        assert todos[0].category is None
+
+
+def test_complete_recurring_copies_tags_category_json():
+    """Test that recurring completion copies tags and category to the next occurrence (JSON)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Recurring",
+            description="",
+            due="2024-06-01",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            repeat="daily",
+            tags=["work"],
+            category="office",
+        )
+        storage.add(todo)
+        storage.complete("1")
+        todos = storage.load()
+        pending = [t for t in todos if not t.completed]
+        assert len(pending) == 1
+        assert pending[0].tags == ["work"]
+        assert pending[0].category == "office"
+
+
+# ---------------------------------------------------------------------------
+# SQLite backend
+# ---------------------------------------------------------------------------
+
+def _make_sqlite_storage(tmpdir: str) -> tuple[TodoStorage, Path]:
+    db_path = Path(tmpdir) / "todos.db"
+    return TodoStorage(storage_path=str(db_path), storage_type="sqlite"), db_path
+
+
+def test_sqlite_save_load_tags_category_roundtrip():
+    """Test tags and category survive a SQLite save/load round-trip."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage, _ = _make_sqlite_storage(tmpdir)
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            tags=["a", "b"],
+            category="home",
+        )
+        storage.save([todo])
+        todos = storage.load()
+        assert len(todos) == 1
+        assert todos[0].tags == ["a", "b"]
+        assert todos[0].category == "home"
+
+
+def test_sqlite_get_tags_category():
+    """Test that get() returns tags and category from SQLite."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage, _ = _make_sqlite_storage(tmpdir)
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            tags=["x"],
+            category="work",
+        )
+        storage.add(todo)
+        result = storage.get("1")
+        assert result is not None
+        assert result.tags == ["x"]
+        assert result.category == "work"
+
+
+def test_sqlite_modify_tags():
+    """Test modifying tags via the SQLite backend."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage, _ = _make_sqlite_storage(tmpdir)
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            tags=["old"],
+        )
+        storage.add(todo)
+        result = storage.modify("1", tags=["x", "y"])
+        assert result is True
+        updated = storage.get("1")
+        assert updated.tags == ["x", "y"]
+
+
+def test_sqlite_modify_category():
+    """Test modifying category via the SQLite backend."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage, _ = _make_sqlite_storage(tmpdir)
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+        )
+        storage.add(todo)
+        result = storage.modify("1", category="home")
+        assert result is True
+        updated = storage.get("1")
+        assert updated.category == "home"
+
+
+def test_sqlite_modify_clear_category():
+    """Test clearing category via the SQLite backend."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage, _ = _make_sqlite_storage(tmpdir)
+        todo = Todo(
+            id="1",
+            title="Test",
+            description="",
+            due=None,
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            category="home",
+        )
+        storage.add(todo)
+        result = storage.modify("1", category=None)
+        assert result is True
+        updated = storage.get("1")
+        assert updated.category is None
+
+
+def test_sqlite_migration_existing_db():
+    """Test that a pre-existing DB without tags/category columns migrates in place."""
+    import sqlite3
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "todos.db"
+        # Create an old-schema DB with a row
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(
+            """CREATE TABLE todos (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                due TEXT,
+                completed INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                priority TEXT NOT NULL DEFAULT 'medium',
+                user_id TEXT,
+                repeat TEXT NOT NULL DEFAULT 'none',
+                last_completed_at TEXT
+            )"""
+        )
+        conn.execute(
+            "INSERT INTO todos (id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("1", "Old Todo", "", None, 0, "2024-01-01T00:00:00", "medium", None, "none", None),
+        )
+        conn.commit()
+        conn.close()
+
+        # Initialize the storage against the old DB — migration should add columns
+        storage = TodoStorage(storage_path=str(db_path), storage_type="sqlite")
+        todos = storage.load()
+        assert len(todos) == 1
+        assert todos[0].id == "1"
+        assert todos[0].title == "Old Todo"
+        assert todos[0].tags == []
+        assert todos[0].category is None
+
+        # Verify the columns exist in the schema
+        conn = sqlite3.connect(str(db_path))
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(todos)").fetchall()]
+        conn.close()
+        assert "tags" in cols
+        assert "category" in cols
+
+
+def test_sqlite_complete_recurring_copies_tags_category():
+    """Test that recurring completion copies tags and category in SQLite."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage, _ = _make_sqlite_storage(tmpdir)
+        todo = Todo(
+            id="1",
+            title="Recurring",
+            description="",
+            due="2024-06-01",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            repeat="daily",
+            tags=["work"],
+            category="office",
+        )
+        storage.add(todo)
+        storage.complete("1")
+        todos = storage.load()
+        pending = [t for t in todos if not t.completed]
+        assert len(pending) == 1
+        assert pending[0].tags == ["work"]
+        assert pending[0].category == "office"
+
+
 def test_filter_by_priority():
     """Test filtering todos by priority."""
     with tempfile.TemporaryDirectory() as tmpdir:

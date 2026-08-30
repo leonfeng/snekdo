@@ -1011,3 +1011,252 @@ def test_update_todo_without_completed_does_not_error(tmp_path: Path):
     assert response.status_code == 200
     assert response.json()["title"] == "Updated title"
     assert response.json()["completed"] is False
+
+
+def test_add_todo_with_tags_and_category(tmp_path: Path):
+    """Test that POST /api/v1/todos with tags and category returns them in response."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    response = client.post(
+        "/api/v1/todos",
+        json={"title": "Tagged todo", "tags": ["work"], "category": "office"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["tags"] == ["work"]
+    assert data["category"] == "office"
+
+
+def test_add_todo_defaults_tags_and_category(tmp_path: Path):
+    """Test that POST /api/v1/todos without tags/category returns defaults."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    response = client.post(
+        "/api/v1/todos",
+        json={"title": "Plain todo"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["tags"] == []
+    assert data["category"] is None
+
+
+def test_modify_todo_tags_replace(tmp_path: Path):
+    """Test that PUT replaces the full tags list."""
+    storage_path = str(tmp_path / "todos.json")
+    app = create_app(storage_path=storage_path)
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    create_response = client.post(
+        "/api/v1/todos",
+        json={"title": "Test", "tags": ["old"]},
+        headers=_auth_header(token),
+    )
+    todo_id = create_response.json()["id"]
+
+    response = client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"tags": ["home", "urgent"]},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["tags"] == ["home", "urgent"]
+
+
+def test_modify_todo_clear_tags(tmp_path: Path):
+    """Test that PUT with tags=[] clears the tags list."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    create_response = client.post(
+        "/api/v1/todos",
+        json={"title": "Test", "tags": ["work"]},
+        headers=_auth_header(token),
+    )
+    todo_id = create_response.json()["id"]
+
+    response = client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"tags": []},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["tags"] == []
+
+
+def test_modify_todo_set_category(tmp_path: Path):
+    """Test that PUT sets the category."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    create_response = client.post(
+        "/api/v1/todos",
+        json={"title": "Test"},
+        headers=_auth_header(token),
+    )
+    todo_id = create_response.json()["id"]
+
+    response = client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"category": "home"},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["category"] == "home"
+
+
+def test_modify_todo_clear_category(tmp_path: Path):
+    """Test that PUT with category=null clears the category."""
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+    token, _ = _register_and_login(client)
+
+    create_response = client.post(
+        "/api/v1/todos",
+        json={"title": "Test", "category": "office"},
+        headers=_auth_header(token),
+    )
+    todo_id = create_response.json()["id"]
+
+    response = client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"category": None},
+        headers=_auth_header(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["category"] is None
+
+
+def test_list_todos_filter_by_tag(tmp_path: Path):
+    """Test that GET /api/v1/todos?tag=... filters todos containing that tag."""
+    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+
+    todo_a = _make_todo(title="Tagged A")
+    todo_a.tags = ["work", "urgent"]
+    todo_a.user_id = user_id
+    storage.add(todo_a)
+
+    todo_b = _make_todo(title="Tagged B")
+    todo_b.tags = ["home"]
+    todo_b.user_id = user_id
+    storage.add(todo_b)
+
+    response = client.get(
+        "/api/v1/todos?tag=work", headers=_auth_header(token)
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["title"] == "Tagged A"
+
+
+def test_list_todos_filter_by_nonexistent_tag(tmp_path: Path):
+    """Test that GET /api/v1/todos?tag=nonexistent returns an empty array."""
+    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+    todo = _make_todo(title="Tagged")
+    todo.tags = ["work"]
+    todo.user_id = user_id
+    storage.add(todo)
+
+    response = client.get(
+        "/api/v1/todos?tag=nonexistent", headers=_auth_header(token)
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_todos_filter_by_category(tmp_path: Path):
+    """Test that GET /api/v1/todos?category=... filters by exact category."""
+    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+
+    todo_a = _make_todo(title="Home A")
+    todo_a.category = "home"
+    todo_a.user_id = user_id
+    storage.add(todo_a)
+
+    todo_b = _make_todo(title="Office B")
+    todo_b.category = "office"
+    todo_b.user_id = user_id
+    storage.add(todo_b)
+
+    response = client.get(
+        "/api/v1/todos?category=home", headers=_auth_header(token)
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["title"] == "Home A"
+
+
+def test_list_todos_filter_by_nonexistent_category(tmp_path: Path):
+    """Test that GET /api/v1/todos?category=nonexistent returns an empty array."""
+    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+    todo = _make_todo(title="Categorized")
+    todo.category = "home"
+    todo.user_id = user_id
+    storage.add(todo)
+
+    response = client.get(
+        "/api/v1/todos?category=nonexistent", headers=_auth_header(token)
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_todo_response_includes_tags_and_category(tmp_path: Path):
+    """Test that GET /api/v1/todos/{id} response includes tags and category."""
+    storage = TodoStorage(storage_path=str(tmp_path / "todos.json"))
+    app = create_app(storage_path=str(tmp_path / "todos.json"))
+    client = TestClient(app)
+
+    token, user_id = _register_and_login(client)
+    todo = _make_todo(title="Tagged and Categorized")
+    todo.tags = ["work"]
+    todo.category = "office"
+    todo.user_id = user_id
+    storage.add(todo)
+
+    response = client.get(
+        f"/api/v1/todos/{todo.id}", headers=_auth_header(token)
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tags"] == ["work"]
+    assert data["category"] == "office"
+

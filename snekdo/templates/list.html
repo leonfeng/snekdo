@@ -39,6 +39,8 @@
             <th>Due</th>
             <th>Repeat</th>
             <th>Created At</th>
+            <th>Tags</th>
+            <th>Category</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -52,6 +54,8 @@
             <td>{{ todo.due if todo.due else "" }}</td>
             <td>{{ "(" ~ todo.repeat ~ ")" if todo.repeat and todo.repeat != "none" else "" }}</td>
             <td>{{ todo.created_at }}</td>
+            <td>{{ todo.tags | join(', ') }}</td>
+            <td>{{ todo.category or '' }}</td>
             <td>
                 <a href="/todos/{{ todo.id }}/edit" class="btn">Edit</a>
                 {% if not todo.completed %}

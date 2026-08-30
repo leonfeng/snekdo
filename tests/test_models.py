@@ -296,6 +296,178 @@ def test_todo_roundtrip_with_user_id():
     assert restored.user_id == todo.user_id
 
 
+# ---------------------------------------------------------------------------
+# Todo tags and category
+# ---------------------------------------------------------------------------
+
+def test_todo_default_tags_and_category():
+    """Test that new todos default to empty tags and None category."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        description="",
+        due=None,
+        completed=False,
+        created_at="2024-01-01T00:00:00",
+    )
+    assert todo.tags == []
+    assert todo.category is None
+
+
+def test_todo_with_tags_and_category():
+    """Test that a todo can store specific tags and category."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        tags=["work", "urgent"],
+        category="office",
+    )
+    assert todo.tags == ["work", "urgent"]
+    assert todo.category == "office"
+
+
+def test_todo_to_dict_includes_tags_and_category():
+    """Test that to_dict serializes tags and category."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        tags=["a", "b"],
+        category="home",
+    )
+    data = todo.to_dict()
+    assert data["tags"] == ["a", "b"]
+    assert data["category"] == "home"
+
+
+def test_todo_from_dict_with_tags_and_category():
+    """Test that from_dict loads tags and category when present."""
+    data = {
+        "id": "1",
+        "title": "Test",
+        "description": "",
+        "due": None,
+        "completed": False,
+        "created_at": "2024-01-01T00:00:00",
+        "tags": ["a", "b"],
+        "category": "home",
+    }
+    todo = Todo.from_dict(data)
+    assert todo.tags == ["a", "b"]
+    assert todo.category == "home"
+
+
+def test_todo_from_dict_backward_compatible_tags_category():
+    """Test that from_dict defaults tags to [] and category to None for old-format JSON."""
+    data = {
+        "id": "1",
+        "title": "Test",
+        "description": "",
+        "due": None,
+        "completed": False,
+        "created_at": "2024-01-01T00:00:00",
+    }
+    todo = Todo.from_dict(data)
+    assert todo.tags == []
+    assert todo.category is None
+
+
+def test_todo_roundtrip_with_tags_and_category():
+    """Test that tags and category survive a to_dict/from_dict round-trip."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        tags=["a", "b"],
+        category="home",
+    )
+    restored = Todo.from_dict(todo.to_dict())
+    assert restored.tags == ["a", "b"]
+    assert restored.category == "home"
+
+
+def test_todo_default_tags_and_category():
+    """Test that new todos default to empty tags and None category."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        description="",
+        due=None,
+        completed=False,
+        created_at="2024-01-01T00:00:00",
+    )
+    assert todo.tags == []
+    assert todo.category is None
+
+
+def test_todo_with_tags_and_category():
+    """Test that a todo can store specific tags and category."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        tags=["work", "urgent"],
+        category="office",
+    )
+    assert todo.tags == ["work", "urgent"]
+    assert todo.category == "office"
+
+
+def test_todo_to_dict_includes_tags_and_category():
+    """Test that to_dict serializes tags and category."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        tags=["a", "b"],
+        category="home",
+    )
+    data = todo.to_dict()
+    assert data["tags"] == ["a", "b"]
+    assert data["category"] == "home"
+
+
+def test_todo_from_dict_with_tags_and_category():
+    """Test that from_dict loads tags and category when present."""
+    data = {
+        "id": "1",
+        "title": "Test",
+        "description": "",
+        "due": None,
+        "completed": False,
+        "created_at": "2024-01-01T00:00:00",
+        "tags": ["a", "b"],
+        "category": "home",
+    }
+    todo = Todo.from_dict(data)
+    assert todo.tags == ["a", "b"]
+    assert todo.category == "home"
+
+
+def test_todo_from_dict_backward_compatible_tags_category():
+    """Test that from_dict defaults tags to [] and category to None for old-format JSON."""
+    data = {
+        "id": "1",
+        "title": "Test",
+        "description": "",
+        "due": None,
+        "completed": False,
+        "created_at": "2024-01-01T00:00:00",
+    }
+    todo = Todo.from_dict(data)
+    assert todo.tags == []
+    assert todo.category is None
+
+
+def test_todo_roundtrip_with_tags_and_category():
+    """Test that tags and category survive a to_dict/from_dict round-trip."""
+    todo = Todo(
+        id="1",
+        title="Test",
+        tags=["a", "b"],
+        category="home",
+    )
+    restored = Todo.from_dict(todo.to_dict())
+    assert restored.tags == ["a", "b"]
+    assert restored.category == "home"
+
+
 def test_next_due_date_daily():
     from datetime import datetime
     from snekdo.models import next_due_date

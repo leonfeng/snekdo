@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import calendar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from enum import StrEnum
 
@@ -164,6 +164,8 @@ class Todo:
     user_id: str | None = None
     repeat: str = Repeat.NONE.value
     last_completed_at: str | None = None
+    tags: list[str] = field(default_factory=list)
+    category: str | None = None
 
     def __post_init__(self):
         """Generate ID if not provided."""
@@ -183,6 +185,8 @@ class Todo:
             "user_id": self.user_id,
             "repeat": self.repeat,
             "last_completed_at": self.last_completed_at,
+            "tags": self.tags,
+            "category": self.category,
         }
         return data
 
@@ -200,4 +204,6 @@ class Todo:
             user_id=data.get("user_id") or None,
             repeat=data.get("repeat", Repeat.NONE.value),
             last_completed_at=data.get("last_completed_at") or None,
+            tags=data.get("tags", []) or [],
+            category=data.get("category") or None,
         )

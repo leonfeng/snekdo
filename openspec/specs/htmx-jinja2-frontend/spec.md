@@ -38,14 +38,40 @@ Priority, Due, Created At columns).
 ### Requirement: Add todo via web UI
 
 The system SHALL provide a web form to add a new todo. The form includes
-fields for title, description, due date, and priority. The priority field
-MUST only accept the values `high`, `medium`, or `low`.
+fields for title, description, due date, priority, repeat, tags
+(comma-separated), and category. The priority field MUST only accept the
+values `high`, `medium`, or `low`.
 
 #### Scenario: Add todo form is rendered
 
 - **WHEN** a user navigates to `/todos/add`
 - **THEN** the server renders an HTML form with title, description, due,
-  and priority fields
+  priority, repeat, tags, and category fields
+
+#### Scenario: Add form renders new inputs
+
+- **WHEN** a user visits the add page
+- **THEN** the form includes a text input for `tags` (placeholder
+  "work, personal") and a text input for `category` (placeholder
+  "e.g., office")
+
+#### Scenario: Add with tags and category
+
+- **WHEN** a user submits the add form with tags "work, urgent" and
+  category "office"
+- **THEN** the created todo has `tags == ["work", "urgent"]` and
+  `category == "office"`
+
+#### Scenario: Add with empty tags and category
+
+- **WHEN** a user submits the add form with empty tags and category
+  fields
+- **THEN** the created todo has `tags == []` and `category is None`
+
+#### Scenario: Add trims whitespace in tags
+
+- **WHEN** a user submits the add form with tags " work ,  urgent "
+- **THEN** the created todo has `tags == ["work", "urgent"]`
 
 #### Scenario: Add todo successfully
 
@@ -107,14 +133,31 @@ element inside the `<tbody>` (not as `outerHTML` of a `<tr>`).
 ### Requirement: Modify todo via web UI
 
 The system SHALL provide a web form to modify an existing todo's title,
-description, due date, and priority. An empty string value for due date
-MUST clear the existing due date.
+description, due date, priority, repeat, tags, and category. An empty
+string value for due date MUST clear the existing due date. An empty
+string value for category MUST clear the existing category. The tags
+field SHALL be comma-separated; the handler SHALL split, trim, drop
+empties, and dedupe while preserving order.
 
 #### Scenario: Edit todo form is rendered
 
 - **WHEN** a user navigates to `/todos/{id}/edit`
 - **THEN** the server renders an HTML form pre-filled with the todo's
-  current values
+  current values, including comma-joined tags and category
+
+#### Scenario: Edit form pre-fills tags and category
+
+- **WHEN** a user opens the edit page for a todo with `tags=["work","home"]`
+  and `category="office"`
+- **THEN** the tags input contains "work, home" and the category input
+  contains "office"
+
+#### Scenario: Edit updates tags and category
+
+- **WHEN** a user submits the edit form with new tags "urgent" and
+  category "home"
+- **THEN** the todo is updated to `tags == ["urgent"]` and
+  `category == "home"`
 
 #### Scenario: Modify todo successfully
 
@@ -298,3 +341,21 @@ session.
 - **WHEN** an authenticated user clicks logout
 - **THEN** the system invalidates the session and redirects to
   `/auth/login`
+
+### Requirement: List view displays tags and category columns
+
+The list view SHALL display a `Tags` column and a `Category` column after
+`Created At`, with empty cells when a todo has no tags or category.
+
+#### Scenario: List shows tags and category
+
+- **WHEN** a user views the list page with a todo having tags and a
+  category
+- **THEN** the row displays the comma-joined tags in the Tags column and
+  the category in the Category column
+
+#### Scenario: List shows empty cells for missing tags/category
+
+- **WHEN** a user views the list page with a todo that has no tags and no
+  category
+- **THEN** the Tags and Category cells are empty

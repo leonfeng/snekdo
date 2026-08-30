@@ -84,6 +84,39 @@ class TestListPage:
         assert response.status_code == 200
         assert "Todos" in response.text
 
+    def test_list_shows_tags_and_category_columns(self, client):
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+        Todo(title="Tagged", tags=["work", "urgent"], category="office",
+             user_id=client.app.state.user_id)
+        todo = Todo(title="Tagged", tags=["work", "urgent"], category="office",
+                    user_id=client.app.state.user_id)
+        storage.add(todo)
+
+        response = client.get("/todos")
+        assert response.status_code == 200
+        assert "<th>Tags</th>" in response.text
+        assert "<th>Category</th>" in response.text
+        assert "work, urgent" in response.text
+        assert ">office<" in response.text
+
+    def test_list_shows_empty_cells_for_missing_tags_category(self, client):
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+        todo = Todo(title="Plain", user_id=client.app.state.user_id)
+        storage.add(todo)
+
+        response = client.get("/todos")
+        assert response.status_code == 200
+        row = response.text.split("Plain")[1].split("</tr>")[0]
+        cells = row.count("<td>")
+        assert cells == 8
+        assert "<td></td>" in row
+
 
 class TestAddPage:
     """Tests for the add todo page."""
@@ -118,6 +151,53 @@ class TestAddPage:
         )
         assert response.status_code == 200
         assert "Title is required" in response.text
+
+    def test_add_form_includes_tags_and_category_inputs(self, client):
+        response = client.get("/todos/add")
+        assert response.status_code == 200
+        assert 'name="tags"' in response.text
+        assert 'name="category"' in response.text
+
+    def test_add_todo_stores_parsed_tags_and_category(self, client):
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+
+        response = client.post(
+            "/todos/add",
+            data={
+                "title": "Tagged todo",
+                "tags": " work ,  urgent ,work",
+                "category": "office",
+                "csrf_token": client.cookies.get("csrf_token"),
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        storage = TodoStorage(storage_path=str(client.app.state.storage_path))
+        todos = storage.load(user_id=client.app.state.user_id)
+        todo = next(t for t in todos if t.title == "Tagged todo")
+        assert todo.tags == ["work", "urgent"]
+        assert todo.category == "office"
+
+    def test_add_todo_empty_tags_and_category(self, client):
+        from snekdo.storage import TodoStorage
+
+        response = client.post(
+            "/todos/add",
+            data={
+                "title": "No tags",
+                "tags": "",
+                "category": "",
+                "csrf_token": client.cookies.get("csrf_token"),
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        storage = TodoStorage(storage_path=str(client.app.state.storage_path))
+        todos = storage.load(user_id=client.app.state.user_id)
+        todo = next(t for t in todos if t.title == "No tags")
+        assert todo.tags == []
+        assert todo.category is None
 
 
 class TestShowPage:
@@ -197,6 +277,82 @@ class TestEditPage:
         )
         assert response.status_code == 200
         assert "Title is required" in response.text
+
+    def test_edit_form_prefills_tags_and_category(self, client):
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+        todo = Todo(
+            title="Original",
+            tags=["work", "home"],
+            category="office",
+            user_id=client.app.state.user_id,
+        )
+        storage.add(todo)
+
+        response = client.get(f"/todos/{todo.id}/edit")
+        assert response.status_code == 200
+        assert 'name="tags"' in response.text
+        assert 'name="category"' in response.text
+        assert 'value="work, home"' in response.text
+        assert 'value="office"' in response.text
+
+    def test_edit_updates_tags_and_category(self, client):
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+        todo = Todo(
+            title="Original",
+            tags=["old"],
+            category="old-cat",
+            user_id=client.app.state.user_id,
+        )
+        storage.add(todo)
+
+        response = client.post(
+            f"/todos/{todo.id}/edit",
+            data={
+                "title": "Updated",
+                "tags": "urgent, home",
+                "category": "home",
+                "csrf_token": client.cookies.get("csrf_token"),
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        updated = storage.get(todo.id, user_id=client.app.state.user_id)
+        assert updated.tags == ["urgent", "home"]
+        assert updated.category == "home"
+
+    def test_edit_empty_category_clears_field(self, client):
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+        storage_file = Path(client.app.state.storage_path)
+        storage = TodoStorage(storage_path=str(storage_file))
+        todo = Todo(
+            title="Original",
+            tags=["old"],
+            category="old-cat",
+            user_id=client.app.state.user_id,
+        )
+        storage.add(todo)
+
+        response = client.post(
+            f"/todos/{todo.id}/edit",
+            data={
+                "title": "Updated",
+                "tags": "",
+                "category": "",
+                "csrf_token": client.cookies.get("csrf_token"),
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        updated = storage.get(todo.id, user_id=client.app.state.user_id)
+        assert updated.tags == []
+        assert updated.category is None
 
 
 class TestCompleteAction:

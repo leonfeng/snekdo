@@ -147,6 +147,16 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
             error=error,
         )
 
+    def _parse_tags(raw: str) -> list[str]:
+        seen: set[str] = set()
+        tags: list[str] = []
+        for part in raw.split(","):
+            tag = part.strip()
+            if tag and tag not in seen:
+                seen.add(tag)
+                tags.append(tag)
+        return tags
+
     @app.post("/todos/add")
     async def add_todo(
         request: Request,
@@ -155,6 +165,8 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         due: str | None = Form(default=""),
         priority: str = Form(default="medium"),
         repeat: str = Form(default="none"),
+        tags: str = Form(default=""),
+        category: str = Form(default=""),
         storage: TodoStorage = Depends(_storage),
         user_id: str = Depends(_require_login),
     ) -> Response:
@@ -193,6 +205,8 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
             due=due,
             priority=priority,
             repeat=repeat,
+            tags=_parse_tags(tags),
+            category=category or None,
         )
         try:
             todo = todo_data.to_todo()
@@ -246,6 +260,8 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
         due: str | None = Form(default=""),
         priority: str = Form(default="medium"),
         repeat: str = Form(default="none"),
+        tags: str = Form(default=""),
+        category: str = Form(default=""),
         storage: TodoStorage = Depends(_storage),
         user_id: str = Depends(_require_login),
     ) -> Response:
@@ -290,6 +306,8 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
             "description": description,
             "priority": priority,
             "repeat": repeat,
+            "tags": _parse_tags(tags),
+            "category": category or None,
         }
         try:
             due_clean = validate_due_date(due)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
@@ -43,9 +44,16 @@ class TodoStorageSQLite:
                     priority TEXT NOT NULL DEFAULT 'medium',
                     user_id TEXT,
                     repeat TEXT NOT NULL DEFAULT 'none',
-                    last_completed_at TEXT
+                    last_completed_at TEXT,
+                    tags TEXT NOT NULL DEFAULT '[]',
+                    category TEXT
                 )
             """)
+            # In-place migration: add tags/category columns to pre-existing databases
+            for column, coltype in (('tags', "TEXT NOT NULL DEFAULT '[]'"), ('category', 'TEXT')):
+                cols = conn.execute('PRAGMA table_info(todos)').fetchall()
+                if column not in [c[1] for c in cols]:
+                    conn.execute(f'ALTER TABLE todos ADD COLUMN {column} {coltype}')
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     username TEXT PRIMARY KEY,
@@ -68,6 +76,11 @@ class TodoStorageSQLite:
 
     def _todo_from_row(self, row: tuple) -> Todo:
         """Convert a database row to a Todo model instance."""
+        tags_raw = row[10] if len(row) > 10 and row[10] else "[]"
+        try:
+            tags = json.loads(tags_raw)
+        except (json.JSONDecodeError, TypeError):
+            tags = []
         return Todo(
             id=row[0],
             title=row[1],
@@ -79,10 +92,17 @@ class TodoStorageSQLite:
             user_id=row[7],
             repeat=row[8] if row[8] else "none",
             last_completed_at=row[9] if len(row) > 9 and row[9] else None,
+            tags=tags,
+            category=row[11] if len(row) > 11 else None,
         )
 
     def _row_to_dict(self, row: tuple) -> dict:
         """Convert a database row to a dict for serialization."""
+        tags_raw = row[10] if len(row) > 10 and row[10] else "[]"
+        try:
+            tags = json.loads(tags_raw)
+        except (json.JSONDecodeError, TypeError):
+            tags = []
         return {
             "id": row[0],
             "title": row[1],
@@ -94,6 +114,8 @@ class TodoStorageSQLite:
             "user_id": row[7],
             "repeat": row[8] if len(row) > 8 and row[8] else "none",
             "last_completed_at": row[9] if len(row) > 9 and row[9] else None,
+            "tags": tags,
+            "category": row[11] if len(row) > 11 else None,
         }
 
     def load(self, user_id: str | None = None) -> list[Todo]:
@@ -108,11 +130,11 @@ class TodoStorageSQLite:
         conn = self._get_connection()
         try:
             cursor = conn.execute(
-                "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at FROM todos"
+                "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at, tags, category FROM todos"
             )
             if user_id is not None:
                 cursor = cursor.execute(
-                    "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at FROM todos WHERE user_id = ?",
+                    "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at, tags, category FROM todos WHERE user_id = ?",
                     (user_id,),
                 )
             rows = cursor.fetchall()
@@ -126,8 +148,8 @@ class TodoStorageSQLite:
         try:
             for todo in todos:
                 conn.execute(
-                    """INSERT OR REPLACE INTO todos (id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    """INSERT OR REPLACE INTO todos (id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at, tags, category)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         todo.id,
                         todo.title,
@@ -139,6 +161,8 @@ class TodoStorageSQLite:
                         todo.user_id,
                         todo.repeat,
                         todo.last_completed_at,
+                        json.dumps(todo.tags),
+                        todo.category,
                     ),
                 )
             conn.commit()
@@ -164,12 +188,12 @@ class TodoStorageSQLite:
         conn = self._get_connection()
         try:
             cursor = conn.execute(
-                "SELECT id, title, description, due, completed, created_at, priority, user_id FROM todos WHERE id = ?",
+                "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at, tags, category FROM todos WHERE id = ?",
                 (todo_id,),
             )
             if user_id is not None:
                 cursor = cursor.execute(
-                    "SELECT id, title, description, due, completed, created_at, priority, user_id FROM todos WHERE id = ? AND user_id = ?",
+                    "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at, tags, category FROM todos WHERE id = ? AND user_id = ?",
                     (todo_id, user_id),
                 )
             row = cursor.fetchone()
@@ -228,12 +252,12 @@ class TodoStorageSQLite:
         conn = self._get_connection()
         try:
             cursor = conn.execute(
-                "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at FROM todos WHERE id = ?",
+                "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at, tags, category FROM todos WHERE id = ?",
                 (todo_id,),
             )
             if user_id is not None:
                 cursor = cursor.execute(
-                    "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at FROM todos WHERE id = ? AND user_id = ?",
+                    "SELECT id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at, tags, category FROM todos WHERE id = ? AND user_id = ?",
                     (todo_id, user_id),
                 )
             row = cursor.fetchone()
@@ -244,10 +268,16 @@ class TodoStorageSQLite:
             now_iso = datetime.now(timezone.utc).isoformat()
 
             # Mark the existing todo as completed
-            conn.execute(
-                "UPDATE todos SET completed = 1, last_completed_at = ? WHERE id = ?",
-                (now_iso,) + ((user_id,) if user_id else ()),
-            )
+            if user_id is not None:
+                conn.execute(
+                    "UPDATE todos SET completed = 1, last_completed_at = ? WHERE id = ? AND user_id = ?",
+                    (now_iso, todo_id, user_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE todos SET completed = 1, last_completed_at = ? WHERE id = ?",
+                    (now_iso, todo_id),
+                )
 
             # If the todo is recurring, create the next occurrence
             if todo.repeat and todo.repeat != "none" and not todo.completed:
@@ -262,10 +292,12 @@ class TodoStorageSQLite:
                     user_id=todo.user_id,
                     repeat=todo.repeat,
                     last_completed_at=None,
+                    tags=todo.tags,
+                    category=todo.category,
                 )
                 conn.execute(
-                    """INSERT INTO todos (id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    """INSERT INTO todos (id, title, description, due, completed, created_at, priority, user_id, repeat, last_completed_at, tags, category)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         new_todo.id,
                         new_todo.title,
@@ -277,6 +309,8 @@ class TodoStorageSQLite:
                         new_todo.user_id,
                         new_todo.repeat,
                         None,
+                        json.dumps(new_todo.tags),
+                        new_todo.category,
                     ),
                 )
 
@@ -334,6 +368,12 @@ class TodoStorageSQLite:
             if "repeat" in kwargs:
                 update_fields.append("repeat = ?")
                 update_values.append(kwargs["repeat"].value if hasattr(kwargs["repeat"], "value") else kwargs["repeat"])
+            if "tags" in kwargs:
+                update_fields.append("tags = ?")
+                update_values.append(json.dumps(kwargs["tags"]))
+            if "category" in kwargs:
+                update_fields.append("category = ?")
+                update_values.append(kwargs["category"])
 
             if not update_fields:
                 return True

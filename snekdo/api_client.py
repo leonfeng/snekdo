@@ -169,6 +169,8 @@ class ServerHttpClient:
         due: str | None = None,
         priority: str = "medium",
         completed: bool | None = None,
+        tags: list[str] | None = None,
+        category: str | None = None,
         credentials_path: Path | None = None,
     ) -> dict:
         """Create a new todo on the server.
@@ -179,6 +181,8 @@ class ServerHttpClient:
             due: The due date (YYYY-MM-DD format).
             priority: The priority level (low, medium, high).
             completed: The completion status. Defaults to None (not sent).
+            tags: The tags list. Defaults to None (not sent).
+            category: The category. Defaults to None (not sent).
             credentials_path: Optional path to the credentials file.
 
         Returns:
@@ -189,6 +193,10 @@ class ServerHttpClient:
             data["due"] = due
         if completed is not None:
             data["completed"] = completed
+        if tags is not None:
+            data["tags"] = tags
+        if category is not None:
+            data["category"] = category
         return self._request(
             "POST", "/api/v1/todos", data=data, credentials_path=credentials_path
         )
@@ -201,6 +209,8 @@ class ServerHttpClient:
         due: str | None = None,
         priority: str | None = None,
         completed: bool | None = None,
+        tags: list[str] | None = None,
+        category: str | None = None,
         credentials_path: Path | None = None,
     ) -> dict:
         """Update an existing todo on the server.
@@ -212,6 +222,8 @@ class ServerHttpClient:
             due: New due date.
             priority: New priority.
             completed: New completion status.
+            tags: New tags list.
+            category: New category.
             credentials_path: Optional path to the credentials file.
 
         Returns:
@@ -228,6 +240,10 @@ class ServerHttpClient:
             data["priority"] = priority
         if completed is not None:
             data["completed"] = completed
+        if tags is not None:
+            data["tags"] = tags
+        if category is not None:
+            data["category"] = category
         return self._request(
             "PUT",
             f"/api/v1/todos/{todo_id}",

@@ -32,6 +32,14 @@
             <option value="yearly" {% if todo.repeat == "yearly" %}selected{% endif %}>Yearly</option>
         </select>
     </div>
+    <div class="form-group">
+        <label for="tags">Tags</label>
+        <input type="text" id="tags" name="tags" value="{{ todo.tags | join(', ') }}" placeholder="work, personal">
+    </div>
+    <div class="form-group">
+        <label for="category">Category</label>
+        <input type="text" id="category" name="category" value="{{ todo.category or '' }}" placeholder="e.g., office">
+    </div>
     <button type="submit" class="btn">Update Todo</button>
 </form>
 {% if error %}

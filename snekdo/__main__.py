@@ -122,6 +122,10 @@ def create_parser() -> argparse.ArgumentParser:
         help="Recurrence interval (none, daily, weekly, monthly, yearly)",
     )
     add_parser.add_argument(
+        "--tag", action="append", default=[], help="Tag for the todo (repeatable)"
+    )
+    add_parser.add_argument("--category", default=None, help="Category for the todo")
+    add_parser.add_argument(
         "--storage", help="Path to the storage file", default=argparse.SUPPRESS
     )
 
@@ -142,6 +146,10 @@ def create_parser() -> argparse.ArgumentParser:
         default="created_at",
         choices=["created_at", "title", "priority", "completed"],
         help="Sort by field (created_at, title, priority, completed)",
+    )
+    list_parser.add_argument("--tag", default=None, help="Filter by tag")
+    list_parser.add_argument(
+        "--category", default=None, help="Filter by exact category"
     )
     list_parser.add_argument(
         "--reverse",
@@ -190,6 +198,12 @@ def create_parser() -> argparse.ArgumentParser:
         default=None,
         choices=["true", "false"],
         help="Set the completed status (true or false)",
+    )
+    modify_parser.add_argument(
+        "--tag", action="append", default=[], help="Replace tags with these (repeatable)"
+    )
+    modify_parser.add_argument(
+        "--category", default=None, help="Set category (empty string clears)"
     )
     modify_parser.add_argument(
         "--storage", help="Path to the storage file", default=argparse.SUPPRESS
@@ -411,6 +425,12 @@ def handle_add(args, parser) -> int:
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+    tags = getattr(args, "tag", None)
+    if not isinstance(tags, list):
+        tags = []
+    category = getattr(args, "category", None)
+    if not isinstance(category, str):
+        category = None
     todo = Todo(
         title=args.title,
         description=args.description,
@@ -419,6 +439,8 @@ def handle_add(args, parser) -> int:
         created_at=datetime.now().isoformat(),
         priority=args.priority,
         repeat=getattr(args, "repeat", "none"),
+        tags=tags,
+        category=category,
     )
     storage.add(todo)
     repeat_info = f" (repeats {getattr(args, 'repeat', 'none')})" if getattr(args, "repeat", "none") != "none" else ""
@@ -440,6 +462,16 @@ def handle_list(args, parser) -> int:
     # Filter by priority
     if args.priority:
         todos = [t for t in todos if t.priority == args.priority]
+
+    # Filter by tag (single exact tag membership)
+    tag_filter = getattr(args, "tag", None)
+    if isinstance(tag_filter, str) and tag_filter:
+        todos = [t for t in todos if tag_filter in (t.tags or [])]
+
+    # Filter by category (exact match)
+    category_filter = getattr(args, "category", None)
+    if isinstance(category_filter, str) and category_filter:
+        todos = [t for t in todos if t.category == category_filter]
 
     # Validate the sort field
     sort_key = args.sort
@@ -493,6 +525,8 @@ def handle_list(args, parser) -> int:
     due_width = 15
     repeat_width = 8
     created_at_width = 25
+    tags_width = 30
+    category_width = 20
 
     # Use a single space separator between all columns for uniform whitespace.
     sep = " "
@@ -501,7 +535,8 @@ def handle_list(args, parser) -> int:
         f"{'ID':<{id_width}}{sep}{'Title':<{title_width}}{sep}"
         f"{'Status':<{status_width}}{sep}{'Priority':<{priority_width}}{sep}"
         f"{'Due':<{due_width}}{sep}{'Repeat':<{repeat_width}}{sep}"
-        f"{'Created At':<{created_at_width}}"
+        f"{'Created At':<{created_at_width}}{sep}{'Tags':<{tags_width}}{sep}"
+        f"{'Category':<{category_width}}"
     )
     print(header)
     print("-" * len(header))
@@ -510,13 +545,18 @@ def handle_list(args, parser) -> int:
         due = todo.due if todo.due else ""
         created_at = todo.created_at if todo.created_at else ""
         repeat_tag = f"({todo.repeat})" if todo.repeat and todo.repeat != "none" else ""
+        tags_text = ", ".join(todo.tags or [])
+        tags_text = _truncate_title(tags_text, tags_width)
+        category_text = todo.category if todo.category else ""
+        category_text = _truncate_title(category_text, category_width)
         title = _truncate_title(todo.title, title_width)
         id_ = _truncate_title(todo.id, id_width)
         print(
             f"{id_:<{id_width}}{sep}{title:<{title_width}}{sep}"
             f"{status:<{status_width}}{sep}{todo.priority:<{priority_width}}{sep}"
             f"{due:<{due_width}}{sep}{repeat_tag:<{repeat_width}}{sep}"
-            f"{created_at:<{created_at_width}}"
+            f"{created_at:<{created_at_width}}{sep}{tags_text:<{tags_width}}{sep}"
+            f"{category_text:<{category_width}}"
         )
 
     return 0
@@ -549,17 +589,23 @@ def handle_delete(args, parser) -> int:
 def handle_modify(args, parser) -> int:
     """Handle the modify command."""
     # Validate that at least one field is being updated
+    _tags_attr = getattr(args, "tag", None)
+    has_tag = isinstance(_tags_attr, list) and len(_tags_attr) > 0
+    _cat_attr = getattr(args, "category", None)
+    has_category = isinstance(_cat_attr, str)
     if (
         args.title is None
         and args.description is None
         and args.due is None
         and args.priority is None
         and getattr(args, "completed", None) is None
+        and not has_tag
+        and not has_category
     ):
         print(
             "Error: No fields to update. "
             "Use --title, --description, --due, "
-            "--priority, or --completed to specify fields to update."
+            "--priority, --completed, --tag, or --category to specify fields to update."
         )
         return 1
 
@@ -587,6 +633,14 @@ def handle_modify(args, parser) -> int:
     completed = getattr(args, "completed", None)
     if completed is not None:
         update_data["completed"] = completed.lower() == "true"
+
+    _tags_attr = getattr(args, "tag", None)
+    if isinstance(_tags_attr, list) and len(_tags_attr) > 0:
+        update_data["tags"] = _tags_attr
+
+    _cat_attr = getattr(args, "category", None)
+    if isinstance(_cat_attr, str):
+        update_data["category"] = _cat_attr or None
 
     storage.modify(args.todo_id, **update_data)
     print(f"Updated todo: {todo.title}")
@@ -896,6 +950,8 @@ def _sync(
                         description=local_todo.description,
                         due=local_todo.due or None,
                         priority=local_todo.priority,
+                        tags=local_todo.tags,
+                        category=local_todo.category,
                         credentials_path=credentials_path,
                     )
                     summary.pushed += 1
@@ -911,6 +967,8 @@ def _sync(
                         due=local_todo.due or None,
                         priority=local_todo.priority,
                         completed=local_todo.completed,
+                        tags=local_todo.tags,
+                        category=local_todo.category,
                         credentials_path=credentials_path,
                     )
                     summary.updated += 1

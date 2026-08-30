@@ -192,6 +192,8 @@ class TodoStorage:
                         user_id=todo.user_id,
                         repeat=todo.repeat,
                         last_completed_at=None,
+                        tags=todo.tags,
+                        category=todo.category,
                     )
                     todos.append(next_todo)
                 self.save(todos)
@@ -253,6 +255,10 @@ class TodoStorage:
                     todo.completed = kwargs["completed"]
                 if "repeat" in kwargs:
                     todo.repeat = kwargs["repeat"]
+                if "tags" in kwargs:
+                    todo.tags = kwargs["tags"]
+                if "category" in kwargs:
+                    todo.category = kwargs["category"]
                 self.save(todos)
                 return True
         return False

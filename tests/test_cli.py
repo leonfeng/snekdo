@@ -30,12 +30,19 @@ def _parse_list_line(line):
     The list output format is:
     {ID:<id_width} {Title:<title_width}
     {Status:<10} {Priority:<10} {Due:<15} {Repeat:<8} {Created At:<25}
+    {Tags:<30} {Category:<20}
 
     Since all columns except ID and Title are fixed-width, we parse from the right.
     """
     line = line.rstrip(chr(10))
 
     # Parse from the right (all fixed-width columns except ID and Title)
+    category = line[-20:].strip()
+    line = line[:-20]
+    line = line[:-1]  # remove space separator before Category
+    tags = line[-30:].strip()
+    line = line[:-30]
+    line = line[:-1]  # remove space separator before Tags
     created_at = line[-25:].strip()
     line = line[:-25]
     line = line[:-1]  # remove space separator before Created At
@@ -63,7 +70,7 @@ def _parse_list_line(line):
         # Skip ID column padding and strip trailing Title column padding
         title = line[first_space + 1:].strip()
 
-    return id_, title, status, priority, due, repeat, created_at
+    return id_, title, status, priority, due, repeat, created_at, tags, category
 
 
 
@@ -3192,3 +3199,505 @@ class TestDeleteAccount:
         )
         assert args.command == "change-password"
         assert args.server == "http://localhost:9000"
+
+
+class TestTagsCategoriesCLI:
+    """Tests for --tag and --category flags on add, modify, and list."""
+
+    def test_add_single_tag(self, tmp_path):
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        args = mock.MagicMock()
+        args.command = "add"
+        args.title = "Test todo"
+        args.description = ""
+        args.due = None
+        args.priority = "medium"
+        args.repeat = "none"
+        args.tag = ["work"]
+        args.category = "home"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            result = handle_add(args, None)
+            assert result == 0
+            mock_storage_instance.add.assert_called_once()
+            added_todo = mock_storage_instance.add.call_args[0][0]
+            assert added_todo.tags == ["work"]
+            assert added_todo.category == "home"
+
+    def test_add_multiple_tags(self, tmp_path):
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        args = mock.MagicMock()
+        args.command = "add"
+        args.title = "Test todo"
+        args.description = ""
+        args.due = None
+        args.priority = "medium"
+        args.repeat = "none"
+        args.tag = ["work", "urgent", "personal"]
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            result = handle_add(args, None)
+            assert result == 0
+            added_todo = mock_storage_instance.add.call_args[0][0]
+            assert added_todo.tags == ["work", "urgent", "personal"]
+            assert added_todo.category is None
+
+    def test_add_defaults_when_omitted(self, tmp_path):
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        args = mock.MagicMock()
+        args.command = "add"
+        args.title = "Test todo"
+        args.description = ""
+        args.due = None
+        args.priority = "medium"
+        args.repeat = "none"
+        args.tag = None
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            result = handle_add(args, None)
+            assert result == 0
+            added_todo = mock_storage_instance.add.call_args[0][0]
+            assert added_todo.tags == []
+            assert added_todo.category is None
+
+    def test_modify_tags_replaces(self, tmp_path):
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = None
+        args.priority = None
+        args.completed = None
+        args.tag = ["new-tag"]
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(id="1", title="Test todo", tags=["old-tag"], category="old-cat")
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once_with("1", tags=["new-tag"])
+
+    def test_modify_category_sets(self, tmp_path):
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = None
+        args.priority = None
+        args.completed = None
+        args.tag = None
+        args.category = "home"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(id="1", title="Test todo")
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once_with("1", category="home")
+
+    def test_modify_category_clears(self, tmp_path):
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = None
+        args.priority = None
+        args.completed = None
+        args.tag = None
+        args.category = ""
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(id="1", title="Test todo", category="old")
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once_with("1", category=None)
+
+    def test_modify_tags_and_category(self, tmp_path):
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = None
+        args.description = None
+        args.due = None
+        args.priority = None
+        args.completed = None
+        args.tag = ["a", "b"]
+        args.category = "work"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(id="1", title="Test todo")
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once_with("1", tags=["a", "b"], category="work")
+
+    def test_modify_no_tags_no_category_leaves_unchanged(self, tmp_path):
+        storage_file = tmp_path / "todos.json"
+        storage_file.write_text("[]")
+        args = mock.MagicMock()
+        args.command = "modify"
+        args.todo_id = "1"
+        args.title = "New title"
+        args.description = None
+        args.due = None
+        args.priority = None
+        args.completed = None
+        args.tag = None
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            todo = Todo(id="1", title="Test todo", tags=["keep"], category="keep")
+            mock_storage_instance.get.return_value = todo
+            result = handle_modify(args, None)
+            assert result == 0
+            mock_storage_instance.modify.assert_called_once_with("1", title="New title")
+
+    def test_list_filter_by_tag(self, tmp_path):
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            Todo(id="1", title="Work task", tags=["work"], completed=False, created_at="2024-01-01T00:00:00"),
+            Todo(id="2", title="Home task", tags=["home"], completed=False, created_at="2024-01-02T00:00:00"),
+        ]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = "work"
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+
+    def test_list_filter_by_tag_no_match(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [Todo(id="1", title="Work task", tags=["work"], completed=False, created_at="2024-01-01T00:00:00")]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = "nonexistent"
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert "No todos found." in captured.out
+
+    def test_list_filter_by_tag_combined_with_status(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            Todo(id="1", title="Pending work", tags=["work"], completed=False, created_at="2024-01-01T00:00:00"),
+            Todo(id="2", title="Completed work", tags=["work"], completed=True, created_at="2024-01-02T00:00:00"),
+        ]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "pending"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = "work"
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert "Pending work" in captured.out
+            assert "Completed work" not in captured.out
+
+    def test_list_filter_by_category(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            Todo(id="1", title="Home task", category="home", completed=False, created_at="2024-01-01T00:00:00"),
+            Todo(id="2", title="Work task", category="work", completed=False, created_at="2024-01-02T00:00:00"),
+        ]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = None
+        args.category = "home"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert "Home task" in captured.out
+            assert "Work task" not in captured.out
+
+    def test_list_filter_by_category_no_match(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [Todo(id="1", title="Task", category="home", completed=False, created_at="2024-01-01T00:00:00")]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = None
+        args.category = "nonexistent"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert "No todos found." in captured.out
+
+    def test_list_filter_by_category_combined_with_status(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [
+            Todo(id="1", title="Pending home", category="home", completed=False, created_at="2024-01-01T00:00:00"),
+            Todo(id="2", title="Completed home", category="home", completed=True, created_at="2024-01-02T00:00:00"),
+        ]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "completed"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = None
+        args.category = "home"
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert "Completed home" in captured.out
+            assert "Pending home" not in captured.out
+
+    def test_list_tags_column_comma_joined(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [Todo(id="1", title="Task", tags=["work", "urgent"], completed=False, created_at="2024-01-01T00:00:00")]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = None
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert "work, urgent" in captured.out
+
+    def test_list_tags_column_empty(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [Todo(id="1", title="Task", tags=[], completed=False, created_at="2024-01-01T00:00:00")]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = None
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            header = captured.out.split("\n")[0]
+            assert "Tags" in header
+            data_line = captured.out.split("\n")[2]
+            tags_col_start = data_line.find("Tags")
+            if tags_col_start == -1:
+                # Find position by header
+                header_tags_pos = header.find("Tags")
+                assert header_tags_pos != -1
+
+    def test_list_tags_column_truncated(self, tmp_path, capsys):
+        long_tags = ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"]
+        joined = ", ".join(long_tags)
+        assert len(joined) > 30
+        storage_file = tmp_path / "todos.json"
+        todos = [Todo(id="1", title="Task", tags=long_tags, completed=False, created_at="2024-01-01T00:00:00")]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = None
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert "..." in captured.out
+
+    def test_list_category_column_shows_category(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [Todo(id="1", title="Task", category="work", completed=False, created_at="2024-01-01T00:00:00")]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = None
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert "work" in captured.out
+
+    def test_list_category_column_empty_when_no_category(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [Todo(id="1", title="Task", category=None, completed=False, created_at="2024-01-01T00:00:00")]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = None
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            header = captured.out.split("\n")[0]
+            assert "Category" in header
+
+    def test_list_header_alignment(self, tmp_path, capsys):
+        storage_file = tmp_path / "todos.json"
+        todos = [Todo(id="1", title="Task", tags=["a"], category="b", completed=False, created_at="2024-01-01T00:00:00")]
+        storage_file.write_text(json.dumps([t.to_dict() for t in todos]))
+
+        args = mock.MagicMock()
+        args.command = "list"
+        args.status = "all"
+        args.limit = None
+        args.priority = None
+        args.sort = "created_at"
+        args.reverse = False
+        args.tag = None
+        args.category = None
+        args.storage = str(storage_file)
+
+        with patch('snekdo.__main__.TodoStorage') as mock_storage:
+            mock_storage_instance = mock_storage.return_value
+            mock_storage_instance.load.return_value = todos
+            result = handle_list(args, None)
+            assert result == 0
+            captured = capsys.readouterr()
+            lines = captured.out.split("\n")
+            header = lines[0]
+            separator = lines[1]
+            assert len(separator) == len(header)
+            assert set(separator) == {"-"}
