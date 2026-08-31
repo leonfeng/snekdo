@@ -1099,3 +1099,188 @@ class TestSecretFallback:
         token = auth.create_access_token("user-1")
         assert auth.decode_access_token(token) == "user-1"
 
+
+# ---------------------------------------------------------------------------
+# Filter helper unit tests
+# ---------------------------------------------------------------------------
+
+class TestFilterTodos:
+    """Unit tests for the _filter_todos helper in snekdo.web."""
+
+    def _make_todos(self):
+        from snekdo.models import Todo
+        return [
+            Todo(title="Buy milk", description="From the store", priority="high", completed=False),
+            Todo(title="Write report", description="Urgent deadline", priority="medium", completed=False),
+            Todo(title="Do laundry", description="", priority="low", completed=True),
+            Todo(title="Pay bills", description="Monthly bills", priority="high", completed=True),
+            Todo(title="Buy groceries", description="Weekly shopping", priority="medium", completed=False),
+        ]
+
+    def test_search_by_title(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos, q="buy", status="all")
+        titles = [t.title for t in result]
+        assert "Buy milk" in titles
+        assert "Buy groceries" in titles
+        assert "Write report" not in titles
+
+    def test_search_by_description(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos, q="urgent", status="all")
+        titles = [t.title for t in result]
+        assert "Write report" in titles
+        assert "Buy milk" not in titles
+
+    def test_search_case_insensitive(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos, q="MILK", status="all")
+        assert len(result) == 1
+        assert result[0].title == "Buy milk"
+
+    def test_status_pending(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos, status="pending")
+        assert all(not t.completed for t in result)
+        assert len(result) == 3
+
+    def test_status_completed(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos, status="completed")
+        assert all(t.completed for t in result)
+        assert len(result) == 2
+
+    def test_status_all(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos, status="all")
+        assert len(result) == 5
+
+    def test_priority_high(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos, status="all", priority="high")
+        assert all(t.priority == "high" for t in result)
+        assert len(result) == 2
+
+    def test_priority_low(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos, status="all", priority="low")
+        assert len(result) == 1
+        assert result[0].title == "Do laundry"
+
+    def test_combined_filters_and(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos, q="buy", status="completed", priority="high")
+        # "Buy milk" is pending+high, "Pay bills" is completed+high but no "buy" in title/desc
+        # No todo matches all three criteria
+        assert len(result) == 0
+
+        result2 = _filter_todos(todos, q="bills", status="completed", priority="high")
+        assert len(result2) == 1
+        assert result2[0].title == "Pay bills"
+
+    def test_default_status_is_pending(self):
+        from snekdo.web import _filter_todos
+        todos = self._make_todos()
+        result = _filter_todos(todos)
+        assert all(not t.completed for t in result)
+        assert len(result) == 3
+
+
+# ---------------------------------------------------------------------------
+# Web route filter tests
+# ---------------------------------------------------------------------------
+
+class TestListFilters:
+    """Tests for /todos search and filter query parameters."""
+
+    def _seed_todos(self, client):
+        from snekdo.models import Todo
+        from snekdo.storage import TodoStorage
+        storage = TodoStorage(storage_path=str(client.app.state.storage_path))
+        uid = client.app.state.user_id
+        storage.add(Todo(title="Buy milk", description="Dairy aisle", priority="high", completed=False, user_id=uid))
+        storage.add(Todo(title="Write report", description="Quarterly summary", priority="medium", completed=False, user_id=uid))
+        storage.add(Todo(title="Do laundry", description="", priority="low", completed=True, user_id=uid))
+        storage.add(Todo(title="Pay bills", description="Electric and water", priority="high", completed=True, user_id=uid))
+        storage.add(Todo(title="Buy groceries", description="Weekly shopping list", priority="medium", completed=False, user_id=uid))
+
+    def test_filter_by_search_query(self, client):
+        self._seed_todos(client)
+        response = client.get("/todos", params={"q": "buy", "status": "all"})
+        assert response.status_code == 200
+        assert "Buy milk" in response.text
+        assert "Buy groceries" in response.text
+        assert "Write report" not in response.text
+        assert "Do laundry" not in response.text
+
+    def test_filter_by_status_completed(self, client):
+        self._seed_todos(client)
+        response = client.get("/todos", params={"status": "completed"})
+        assert response.status_code == 200
+        assert "Do laundry" in response.text
+        assert "Pay bills" in response.text
+        assert "Buy milk" not in response.text
+        assert "Write report" not in response.text
+
+    def test_filter_by_status_pending(self, client):
+        self._seed_todos(client)
+        response = client.get("/todos", params={"status": "pending"})
+        assert response.status_code == 200
+        assert "Buy milk" in response.text
+        assert "Do laundry" not in response.text
+        assert "Pay bills" not in response.text
+
+    def test_filter_by_status_all(self, client):
+        self._seed_todos(client)
+        response = client.get("/todos", params={"status": "all"})
+        assert response.status_code == 200
+        assert "Buy milk" in response.text
+        assert "Do laundry" in response.text
+
+    def test_filter_by_priority(self, client):
+        self._seed_todos(client)
+        response = client.get("/todos", params={"priority": "high", "status": "all"})
+        assert response.status_code == 200
+        assert "Buy milk" in response.text
+        assert "Pay bills" in response.text
+        assert "Write report" not in response.text
+        assert "Do laundry" not in response.text
+
+    def test_combined_filters(self, client):
+        self._seed_todos(client)
+        response = client.get("/todos", params={"q": "bills", "status": "completed", "priority": "high"})
+        assert response.status_code == 200
+        assert "Pay bills" in response.text
+        assert "Buy milk" not in response.text
+        assert "Do laundry" not in response.text
+
+    def test_no_match_shows_empty_state(self, client):
+        self._seed_todos(client)
+        response = client.get("/todos", params={"q": "nonexistent"})
+        assert response.status_code == 200
+        assert "No todos found" in response.text
+
+    def test_filter_bar_values_prepopulated(self, client):
+        self._seed_todos(client)
+        response = client.get("/todos", params={"q": "buy", "status": "all", "priority": "high"})
+        assert response.status_code == 200
+        assert 'value="buy"' in response.text
+        assert '<option value="all" selected>All</option>' in response.text
+        assert '<option value="high" selected>High</option>' in response.text
+
+    def test_default_no_filters_shows_pending_only(self, client):
+        self._seed_todos(client)
+        response = client.get("/todos")
+        assert response.status_code == 200
+        assert "Buy milk" in response.text
+        assert "Do laundry" not in response.text
+

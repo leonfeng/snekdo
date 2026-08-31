@@ -18,7 +18,7 @@ from snekdo.csrf import (
     verify_csrf_token,
 )
 from snekdo.due_date import validate_due_date
-from snekdo.models import User
+from snekdo.models import Todo, User
 from snekdo.storage import StorageError, TodoStorage, UserStorage
 from snekdo.web_auth import register_web_routes as register_auth_web_routes
 
@@ -47,6 +47,28 @@ def get_template_env() -> Environment:
 def get_storage(storage_path: str | None = None) -> TodoStorage:
     """Dependency that provides a :class:`TodoStorage` instance."""
     return TodoStorage(storage_path=storage_path)
+
+
+def _filter_todos(
+    todos: list[Todo],
+    q: str | None = None,
+    status: str = "pending",
+    priority: str | None = None,
+) -> list[Todo]:
+    """Filter todos by search query, status, and priority (AND semantics)."""
+    if q:
+        q_lower = q.lower()
+        todos = [
+            t for t in todos
+            if q_lower in t.title.lower() or q_lower in (t.description or "").lower()
+        ]
+    if status == "pending":
+        todos = [t for t in todos if not t.completed]
+    elif status == "completed":
+        todos = [t for t in todos if t.completed]
+    if priority:
+        todos = [t for t in todos if t.priority == priority]
+    return todos
 
 
 def _render(request: Request, template_name: str, **context) -> Response:
@@ -110,24 +132,44 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
     @app.get("/")
     async def index(
         request: Request,
+        q: str | None = None,
+        status: str = "pending",
+        priority: str | None = None,
         storage: TodoStorage = Depends(_storage),
         user_id: str = Depends(_require_login),
     ) -> Response:
-        """List pending todos (alias for /todos)."""
-        todos = storage.load(user_id=user_id)
-        pending = [t for t in todos if not t.completed]
-        return _render(request, "list.html", todos=pending, title="Todos")
+        """List todos with search and filters (alias for /todos)."""
+        todos = _filter_todos(storage.load(user_id=user_id), q, status, priority)
+        return _render(
+            request,
+            "list.html",
+            todos=todos,
+            q=q or "",
+            status=status,
+            priority=priority or "",
+            title="Todos",
+        )
 
     @app.get("/todos")
     async def list_todos(
         request: Request,
+        q: str | None = None,
+        status: str = "pending",
+        priority: str | None = None,
         storage: TodoStorage = Depends(_storage),
         user_id: str = Depends(_require_login),
     ) -> Response:
-        """List pending todos."""
-        todos = storage.load(user_id=user_id)
-        pending = [t for t in todos if not t.completed]
-        return _render(request, "list.html", todos=pending, title="Todos")
+        """List todos with search and filters."""
+        todos = _filter_todos(storage.load(user_id=user_id), q, status, priority)
+        return _render(
+            request,
+            "list.html",
+            todos=todos,
+            q=q or "",
+            status=status,
+            priority=priority or "",
+            title="Todos",
+        )
 
     # ------------------------------------------------------------------
     # Add todo (must be before /todos/{todo_id} to avoid path param match)
