@@ -1,10 +1,19 @@
-"""E2E tests for web frontend security and HTMX bug fixes.
+"""E2E tests for the web frontend security features.
 
-Covers: CSRF token presence in forms, deleting the last todo,
-invalid priority on add, empty login credentials, POST logout, and delete account via HTMX.
+Covers: CSRF token presence in forms, rejecting invalid CSRF,
+auth redirect for unauthenticated access, and account deletion via HTMX.
+
+These tests require a running server (started by the test fixture)
+and a browser (Playwright).
+
+Usage:
+    SNEKDO_STORAGE_PATH=/tmp/snekdo-e2e/todos.json \
+    SNEKDO_USERS_PATH=/tmp/snekdo-e2e/users.json \
+    uv run pytest tests/e2e/ -m e2e -v
 """
 
 import pytest
+import pytest_asyncio
 
 pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
 
@@ -43,21 +52,23 @@ async def _get_todo_id(page, title: str = "Test todo"):
 
 
 async def _htmx_submit(page, form_selector, hx_post_url, fill_values):
-    """Fill form fields and submit via HTMX fetch request with CSRF token."""
+    """Fill form fields and submit via fetch with HTMX-style request."""
     csrf_token = await _get_csrf_token(page)
     for name, value in fill_values.items():
         await page.locator(f'{form_selector} input[name="{name}"]').fill(value)
-    await page.evaluate(
-        '(params) => { '
-        'const form = document.querySelector(params.formSelector); '
-        'const fd = new FormData(form); '
-        'const headers = { "HX-Request": "true", "X-CSRF-Token": params.csrfToken }; '
-        'return fetch(params.hxPostUrl, { method: "POST", headers: headers, body: fd })'
-        '.then(r => r.text()).then(d => { document.getElementById("profile-content").innerHTML = d; return d; }); '
-        '}',
+    return await page.evaluate(
+        """(params) => {
+            const form = document.querySelector(params.formSelector);
+            const fd = new FormData(form);
+            return fetch(params.hxPostUrl, {
+                method: 'POST',
+                headers: { 'HX-Request': 'true', 'X-CSRF-Token': params.csrfToken },
+                body: fd,
+                credentials: 'include',
+            }).then(r => r.text());
+        }""",
         {'formSelector': form_selector, 'hxPostUrl': hx_post_url, 'csrfToken': csrf_token},
     )
-    await page.wait_for_timeout(500)
 
 
 async def test_csrf_token_in_add_form(page):
@@ -85,7 +96,6 @@ async def test_csrf_token_in_edit_form(page):
 async def test_csrf_token_in_profile_forms(page):
     """The profile forms include a CSRF token hidden input."""
     await page.goto(f"{BASE_URL}/profile")
-    # Count CSRF tokens within the profile content forms only (not the logout form in base.html)
     content = page.locator('#profile-content')
     csrf_inputs = content.locator('input[name="csrf_token"]')
     count = await csrf_inputs.count()
@@ -121,24 +131,19 @@ async def test_csrf_missing_token_rejection_403(page):
 async def test_csrf_mismatched_token_rejection_403(page):
     """CSRF mismatched-token rejection: submitting with a wrong CSRF token returns 403."""
     await page.goto(f"{BASE_URL}/todos/add")
-    await page.fill('input[name="title"]', "Test todo for csrf test wrong")
-    await page.evaluate(
-        '() => { '
-        'document.querySelector(\'input[name="csrf_token"]\').value = "wrong-token-value"; '
-        '}'
+    # Use fetch directly with a known-wrong token to trigger CSRF rejection
+    body = await page.evaluate(
+        """() => {
+            return fetch('/todos/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'title=Test+todo&csrf_token=wrong-token-value',
+                credentials: 'include'
+            }).then(r => r.text());
+        }"""
     )
-    # Submit the form with the modified csrf token value via fetch
-    await page.evaluate(
-        '() => { '
-        'const form = document.querySelector(\'form[action="/todos/add"]\'); '
-        'const fd = new FormData(form); '
-        'fetch(form.action, { method: "POST", body: fd, credentials: "include" })'
-        '.then(r => r.text()).then(d => document.body.innerHTML = d); '
-        '}'
-    )
-    await page.wait_for_timeout(500)
-    text = (await page.locator('body').text_content()).lower()
-    assert "invalid csrf token" in text
+    assert body is not None
+    assert "invalid csrf token" in body.lower()
 
 
 async def test_no_state_mutation_on_csrf_rejection(page):
@@ -147,9 +152,16 @@ async def test_no_state_mutation_on_csrf_rejection(page):
     todos_before = await page.locator('.todo-row').count()
     await page.goto(f"{BASE_URL}/todos/add")
     await page.fill('input[name="title"]', "Test todo no mutation")
+    # Remove CSRF token to trigger rejection
+    await page.evaluate(
+        '() => { const i = document.querySelector(\'input[name="csrf_token"]\'); if (i) i.remove(); }'
+    )
     await page.evaluate(
         '() => { document.querySelector(\'form[action="/todos/add"]\').submit(); }'
     )
+    await page.wait_for_load_state("load")
+    # Verify no new todo was created by navigating to the list
+    await page.goto(f"{BASE_URL}/todos")
     todos_after = await page.locator('.todo-row').count()
     assert todos_before == todos_after
 
@@ -157,38 +169,43 @@ async def test_no_state_mutation_on_csrf_rejection(page):
 async def test_csrf_token_invalidated_on_logout(page):
     """CSRF token invalidated on logout: resubmitting the pre-logout token is rejected."""
     await page.goto(f"{BASE_URL}/todos")
-    csrf_token = await _get_csrf_token(page)
+    old_token = await _get_csrf_token(page)
+    assert old_token is not None
+
+    # Log out
     await page.click('form[action="/auth/logout"] button[type="submit"]')
     await page.wait_for_url(f"{BASE_URL}/auth/login")
-    # After logout, the CSRF token cookie should be deleted.
-    # Log in again to get a new session/CSRF cookie, then submit with old token.
+
+    # Log back in — a new CSRF token is issued
     await page.goto(f"{BASE_URL}/auth/login")
     await page.fill('input[name="username"]', "testuser")
     await page.fill('input[name="password"]', "password123")
     await page.click('button[type="submit"]')
     await page.wait_for_url(BASE_URL)
-    # Now submit to /todos/add with the old CSRF token - should be rejected (403).
+
+    # Now submit to /todos/add with the OLD (invalidated) CSRF token via fetch
     await page.goto(f"{BASE_URL}/todos/add")
-    # The form should have the csrf_token input from the server-rendered HTML
-    # but the cookie has a new token (from re-login), so the old token won't match.
-    await page.fill('input[name="title"]', "Test csrf after logout")
-    await page.evaluate(
-        f'(oldToken) => {{ '
-        'const input = document.querySelector("input[name=\\"csrf_token\\"]"); '
-        'if (input) input.value = oldToken; '
-        'document.querySelector("form").submit(); }}',
-        csrf_token,
+    body = await page.evaluate(
+        """(oldToken) => {
+            return fetch('/todos/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'title=Test+csrf+after+logout&csrf_token=' + encodeURIComponent(oldToken),
+                credentials: 'include',
+            }).then(r => r.text());
+        }""",
+        old_token,
     )
-    await page.wait_for_load_state("load")
-    text = (await page.locator('body').text_content()).lower()
-    assert "invalid csrf token" in text
+    assert body is not None
+    assert "invalid csrf token" in body.lower()
 
 
 async def test_delete_account_via_htmx(page):
     """Deleting the account via HTMX removes the account and shows login."""
     await page.goto(f"{BASE_URL}/profile")
-    await _htmx_submit(page, 'form[hx-post="/profile/delete"]', '/profile/delete', {
+    body = await _htmx_submit(page, 'form[hx-post="/profile/delete"]', '/profile/delete', {
         'current_password': 'password123',
     })
     await page.wait_for_timeout(500)
-    assert "login" in await _get_text(page).lower()
+    # The HTMX response is the confirmation page
+    assert "deleted" in body.lower()

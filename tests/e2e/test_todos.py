@@ -31,14 +31,18 @@ async def _post_todo_action(page, todo_id: str, action: str) -> None:
     await page.evaluate(
         """(params) => {
             let cs = '';
-            const btn = document.querySelector('button[hx-headers]');
-            if (btn) {
-                const m = btn.outerHTML.match(/X-CSRF[\\s"']+:\\s*[\\s"']+"([^"]*)"/);
-                cs = m ? m[1] : '';
+            const input = document.querySelector('input[name="csrf_token"]');
+            if (input) {
+                cs = input.value;
             }
             if (!cs) {
-                const token = document.querySelector('input[name="csrf_token"]');
-                if (token) cs = token.value;
+                const btn = document.querySelector('button[hx-headers]');
+                if (btn) {
+                    try {
+                        const headers = JSON.parse(btn.getAttribute('hx-headers'));
+                        cs = headers['X-CSRF-Token'] || '';
+                    } catch (e) {}
+                }
             }
             return fetch(`${params.url}/${params.id}/${params.action}`, {
                 method: "POST",
