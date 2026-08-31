@@ -4,14 +4,17 @@ A simple todo list manager for Python. Built to evaluate open-weight models.
 
 Inference & Agentic Dev Stack:
 
-- vLLM
-- KAT-Coder-Dev (deprecated due to constant tool call loops)
-- BigBang (deprecated due to frequent rumination loops)
-- Nemotron 3.5 Lightning
-- OpenCode (custom config: https://github.com/leonfeng/opencode-config)
-- OpenSpec
+- [vLLM](https://vllm.ai/)
+    - [KAT-Coder-Dev](https://huggingface.co/sahilchachra/KAT-Coder-V2.5-Dev-NVFP4A16) (deprecated due to constant tool call loops)
+    - [BigBang](https://huggingface.co/TheShed/BigBang-v1-W4A16-NVFP4-MTP) (deprecated due to frequent rumination loops)
+    - [Nemotron 3.5 Lightning](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4) with [DSpark](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark) (superseded by Qwen 3.8)
+- [SGLang](https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-27B)
+    - [Qwen 3.8 27B](https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead) with [DFlash2](https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2)
+- [OpenCode](https://opencode.ai/) (with [custom config](https://github.com/leonfeng/opencode-config))
+- [OpenSpec](https://github.com/Fission-AI/OpenSpec)
 - [LocalSpec](https://github.com/leonfeng/LocalSpec)
-- Cursor (mostly used for consultation, customizing OpenCode and OpenSpec, and fixing my mistakes)
+- [context-compiler](https://github.com/Emmimal/context-compiler/)
+- [Cursor](https://cursor.com/) (mostly used for consultation, customizing OpenCode and OpenSpec, and fixing my mistakes)
 
 ## Features
 
