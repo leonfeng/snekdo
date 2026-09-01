@@ -29,6 +29,18 @@
         <p class="detail-label">Created At</p>
         <p class="detail-value">{{ todo.created_at }}</p>
     </div>
+    <div class="detail-group">
+        <p class="detail-label">Repeat</p>
+        <p class="detail-value">{{ todo.repeat if todo.repeat and todo.repeat != "none" else "—" }}</p>
+    </div>
+    <div class="detail-group">
+        <p class="detail-label">Tags</p>
+        <p class="detail-value">{{ todo.tags | join(', ') if todo.tags else "—" }}</p>
+    </div>
+    <div class="detail-group">
+        <p class="detail-label">Category</p>
+        <p class="detail-value">{{ todo.category if todo.category else "—" }}</p>
+    </div>
 </div>
 <a href="/todos" class="btn">Back to List</a>
 <a href="/todos/{{ todo.id }}/edit" class="btn">Edit</a>

@@ -464,6 +464,15 @@ def register_web_routes(app: FastAPI, storage_path: str | None = None) -> None:
     register_auth_web_routes(router=app, storage_path=storage_path)
 
     # ------------------------------------------------------------------
+    # Confirmation route (standalone, no auth required)
+    # ------------------------------------------------------------------
+
+    @app.get("/confirmation")
+    async def confirmation_page(request: Request) -> Response:
+        """Render the account deletion confirmation page."""
+        return _render(request, "confirmation.html", error=None)
+
+    # ------------------------------------------------------------------
     # Profile routes
     # ------------------------------------------------------------------
 

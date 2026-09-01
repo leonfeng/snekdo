@@ -444,7 +444,7 @@ class UserStorage:
             True if the user was found and deleted, False otherwise.
         """
         if self.storage_type == "sqlite" and self._sqlite_backend is not None:
-            return self._sqlite_backend.delete_user_with_todos(user_id, self._sqlite_backend)
+            return self._sqlite_backend.delete_user_with_todos(user_id, todo_storage._sqlite_backend)
         todo_storage.delete_all_user_todos(user_id)
         return self.delete_user(user_id)
 
