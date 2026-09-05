@@ -491,6 +491,28 @@ def test_complete_recurring_copies_tags_category_json():
         assert pending[0].category == "office"
 
 
+def test_complete_recurring_twice_json_is_idempotent():
+    """Completing the same recurring todo twice must not spawn a duplicate occurrence (JSON)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "todos.json"
+        storage = TodoStorage(storage_path=str(storage_path))
+        todo = Todo(
+            id="1",
+            title="Recurring",
+            description="",
+            due="2024-06-01",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            repeat="daily",
+        )
+        storage.add(todo)
+        storage.complete("1")
+        storage.complete("1")
+        todos = storage.load()
+        pending = [t for t in todos if not t.completed]
+        assert len(pending) == 1
+
+
 # ---------------------------------------------------------------------------
 # SQLite backend
 # ---------------------------------------------------------------------------
@@ -669,6 +691,27 @@ def test_sqlite_complete_recurring_copies_tags_category():
         assert len(pending) == 1
         assert pending[0].tags == ["work"]
         assert pending[0].category == "office"
+
+
+def test_sqlite_complete_recurring_twice_is_idempotent():
+    """Completing the same recurring todo twice must not spawn a duplicate occurrence (SQLite)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage, _ = _make_sqlite_storage(tmpdir)
+        todo = Todo(
+            id="1",
+            title="Recurring",
+            description="",
+            due="2024-06-01",
+            completed=False,
+            created_at="2024-01-01T00:00:00",
+            repeat="daily",
+        )
+        storage.add(todo)
+        storage.complete("1")
+        storage.complete("1")
+        todos = storage.load()
+        pending = [t for t in todos if not t.completed]
+        assert len(pending) == 1
 
 
 def test_filter_by_priority():

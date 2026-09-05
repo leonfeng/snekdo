@@ -104,3 +104,8 @@ The source todo SHALL be marked `completed = true` with its `last_completed_at` 
 
 - **WHEN** a user completes the same recurring occurrence twice (e.g., via CLI and API)
 - **THEN** only one new pending occurrence is created (completion of an already-completed todo is a no-op for recurrence)
+
+#### Scenario: Idempotency holds for an already-completed occurrence on any storage backend
+
+- **WHEN** a recurring todo that is already `completed = true` is completed again on either the JSON or SQLite storage backend
+- **THEN** no additional pending occurrence is created and the pending occurrence count is unchanged

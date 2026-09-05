@@ -177,10 +177,11 @@ class TodoStorage:
         todos = self.load(user_id=user_id)
         for todo in todos:
             if todo.id == todo_id:
+                was_completed = todo.completed
                 todo.completed = True
                 now_iso = datetime.now().isoformat()
                 todo.last_completed_at = now_iso
-                if todo.repeat and todo.repeat != "none":
+                if todo.repeat and todo.repeat != "none" and not was_completed:
                     next_due = next_due_date(todo.due, todo.repeat, datetime.now())
                     next_todo = Todo(
                         title=todo.title,
